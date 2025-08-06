@@ -1,0 +1,455 @@
+version: '3'
+
+vars:
+  REPO_OWNER: '{{.REPO_OWNER | default "your-org"}}'
+  REPO_NAME: '{{.REPO_NAME | default "your-repo"}}'
+  SCORECARD_RESULTS: scorecard-results.json
+  
+  # Environment configuration
+  NETWORKS:
+    - internal
+    - public
+  ENVIRONMENTS:
+    - dev
+    - staging
+    - prod
+  SERVICES:
+    - api
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list
+
+  ci:
+    desc: Run CI pipeline locally with act
+    cmds:
+      - echo "🚀 Running CI pipeline locally..."
+      - act push
+      - echo "✅ CI pipeline completed successfully"
+
+  ci-pr:
+    desc: Run PR workflow locally with act
+    cmds:
+      - echo "🔄 Running PR workflow locally..."
+      - act pull_request
+      - echo "✅ PR workflow completed successfully"
+
+  ci-workflow:
+    desc: Run specific workflow with act
+    cmds:
+      - act {{.WORKFLOW | default "push"}} {{.CLI_ARGS}}
+    vars:
+      WORKFLOW: '{{.WORKFLOW}}'
+
+  scorecard:
+    desc: Run OSSF Scorecard security analysis
+    deps: [install-scorecard]
+    cmds:
+      - echo "🔐 Running OSSF Scorecard analysis..."
+      - scorecard --repo=github.com/{{.REPO_OWNER}}/{{.REPO_NAME}} --format=default
+
+  scorecard-local:
+    desc: Run Scorecard on local repository
+    deps: [install-scorecard]
+    cmds:
+      - echo "🔐 Running Scorecard on local repo..."
+      - scorecard --local=. --format=default
+
+  check-envs-exist:
+    desc: Check if GitHub environments exist
+    silent: true
+    run: when_changed
+    sources:
+      - Taskfile.yml  # Re-run when environment config changes
+    generates:
+      - /tmp/task-env-state
+    cmds:
+      - |
+        envs="{{range .NETWORKS}}{{$network := .}}{{range $.ENVIRONMENTS}}{{$network}}-{{.}} {{end}}{{end}}"
+        echo "🌍 Checking environments: $envs"
+        ./scripts/task/check-environments.sh $envs
+
+  check-secrets:
+    desc: Check repository and environment secrets
+    silent: true
+    deps: [check-envs-exist]
+    run: when_changed
+    sources:
+      - /tmp/task-env-state
+      - Taskfile.yml
+    cmds:
+      - |
+        envs="{{range .NETWORKS}}{{$network := .}}{{range $.ENVIRONMENTS}}{{$network}}-{{.}} {{end}}{{end}}"
+        echo "🔑 Checking secrets for environments: $envs"
+        ./scripts/task/check-secrets.sh $envs
+
+  check-branch-protection:
+    desc: Check branch protection rules
+    silent: true
+    preconditions:
+      - sh: command -v gh
+        msg: "GitHub CLI is required. Run 'brew install gh' or 'task install-gh'"
+      - sh: gh auth status
+        msg: "GitHub CLI authentication required. Run 'gh auth login'"
+    cmds:
+      - echo "🛡️ Checking branch protection rules..."
+      - ./scripts/task/check-branch-protection.sh
+
+  check-workflows:
+    desc: Check GitHub Actions workflows
+    silent: true
+    vars:
+      WORKFLOW_COUNT:
+        sh: find .github/workflows -name "*.yml" -o -name "*.yaml" 2>/dev/null | wc -l | tr -d ' '
+    preconditions:
+      - sh: '[ -d .github/workflows ]'
+        msg: "No .github/workflows directory found"
+    cmds:
+      - echo "⚙️ Found {{.WORKFLOW_COUNT}} workflow file(s)"
+      - |
+        if [ "{{.WORKFLOW_COUNT}}" -gt 0 ]; then
+          ./scripts/task/check-workflows.sh
+        else
+          echo "⚠️ No workflow files found in .github/workflows"
+        fi
+
+  doctor:
+    desc: Complete repository health check
+    silent: true
+    vars:
+      TIMESTAMP:
+        sh: date +"%Y-%m-%d %H:%M:%S"
+    deps: [check-envs-exist, check-secrets, check-branch-protection, check-workflows]
+    cmds:
+      - echo "🏥 REPOSITORY HEALTH CHECK REPORT"
+      - echo "=================================================="
+      - echo "📅 Started at {{.TIMESTAMP}}"
+      - |
+        REPO_NAME=$(gh repo view --json name --jq .name 2>/dev/null || echo "unknown")
+        REPO_OWNER=$(gh repo view --json owner --jq .owner.login 2>/dev/null || echo "unknown")
+        DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name 2>/dev/null || echo "main")
+        echo "📍 Repository: $REPO_OWNER/$REPO_NAME"
+        echo "🌿 Default branch: $DEFAULT_BRANCH"
+      - echo ""
+      - echo "📊 SUMMARY OF FINDINGS:"
+      - echo "======================="
+      - |
+        # Read environment state
+        ENV_STATE_FILE="/tmp/task-env-state"
+        if [ -f "$ENV_STATE_FILE" ]; then
+          source "$ENV_STATE_FILE"
+          TOTAL_ENVS=$(echo $ALL_EXPECTED_ENVS | wc -w | tr -d ' ')
+          echo "🌍 Environments: $MISSING_ENVS of $TOTAL_ENVS missing"
+          if [ "$MISSING_ENVS" -gt 0 ]; then
+            echo "   ❌ Missing environments need to be created"
+            echo "   📋 Expected: $ALL_EXPECTED_ENVS"
+          else
+            echo "   ✅ All expected environments exist"
+          fi
+        else
+          echo "🌍 Environments: Status unknown (check failed)"
+        fi
+      - |
+        # Check workflow count
+        WORKFLOW_COUNT=$(find .github/workflows -name "*.yml" -o -name "*.yaml" 2>/dev/null | wc -l | tr -d ' ')
+        echo "⚙️ Workflows: $WORKFLOW_COUNT files found"
+        if [ "$WORKFLOW_COUNT" -eq 0 ]; then
+          echo "   ❌ No workflow files found"
+        elif [ "$WORKFLOW_COUNT" -lt 3 ]; then
+          echo "   ⚠️ Consider adding more workflows (test, build, deploy, release)"
+        else
+          echo "   ✅ Good workflow coverage"
+        fi
+      - |
+        # Check branch protection
+        DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name 2>/dev/null || echo "main")
+        if gh api repos/:owner/:repo/branches/$DEFAULT_BRANCH/protection >/dev/null 2>&1; then
+          echo "🛡️ Branch Protection: ✅ Enabled for '$DEFAULT_BRANCH'"
+        else
+          echo "🛡️ Branch Protection: ❌ Not configured for '$DEFAULT_BRANCH'"
+        fi
+      - |
+        # Check secrets
+        SECRET_COUNT=$(gh secret list 2>/dev/null | wc -l | tr -d ' ')
+        echo "🔑 Repository Secrets: $SECRET_COUNT configured"
+        if [ "$SECRET_COUNT" -gt 0 ]; then
+          echo "   ✅ Repository secrets are configured"
+        else
+          echo "   ⚠️ No repository secrets found"
+        fi
+      - echo ""
+      - echo "🔍 DETAILED DIAGNOSTICS:"
+      - echo "========================"
+      - echo ""
+      - echo "See detailed output from individual checks above."
+      - echo ""
+      - echo "🚀 RECOMMENDED ACTIONS:"
+      - echo "======================="
+      - |
+        ACTION_NUM=1
+        # Read environment state for recommendations
+        ENV_STATE_FILE="/tmp/task-env-state"
+        if [ -f "$ENV_STATE_FILE" ]; then
+          source "$ENV_STATE_FILE"
+          if [ "$MISSING_ENVS" -gt 0 ]; then
+            echo "$ACTION_NUM. Create missing environments: task setup-all-envs"
+            ACTION_NUM=$((ACTION_NUM + 1))
+          fi
+        fi
+        
+        # Branch protection recommendation
+        DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name 2>/dev/null || echo "main")
+        if ! gh api repos/:owner/:repo/branches/$DEFAULT_BRANCH/protection >/dev/null 2>&1; then
+          echo "$ACTION_NUM. Enable branch protection: task setup-repo"
+          ACTION_NUM=$((ACTION_NUM + 1))
+        fi
+        
+        # Workflow recommendations
+        WORKFLOW_COUNT=$(find .github/workflows -name "*.yml" -o -name "*.yaml" 2>/dev/null | wc -l | tr -d ' ')
+        if [ "$WORKFLOW_COUNT" -lt 3 ]; then
+          echo "$ACTION_NUM. Consider adding more workflows (test, build, deploy, release)"
+        fi
+        
+        if [ "$ACTION_NUM" -eq 1 ]; then
+          echo "🎉 No immediate actions required - repository health looks good!"
+        fi
+      - echo ""
+      - echo "✅ Repository health check completed"
+      - defer: echo "🏁 Health check finished at $(date +'%Y-%m-%d %H:%M:%S')"
+
+  doctor-with-report:
+    desc: Run health check and generate detailed report
+    silent: true
+    deps: [check-envs-exist, check-secrets, check-branch-protection, check-workflows]
+    vars:
+      TIMESTAMP:
+        sh: date +"%Y%m%d-%H%M%S"
+      REPORT_DATE:
+        sh: date
+    generates:
+      - health-report-{{.TIMESTAMP}}.md
+    cmds:
+      - |
+        # Collect diagnostic data
+        REPO_NAME=$(gh repo view --json name --jq .name 2>/dev/null || echo "unknown")
+        REPO_OWNER=$(gh repo view --json owner --jq .owner.login 2>/dev/null || echo "unknown")
+        DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name 2>/dev/null || echo "main")
+        
+        # Environment data
+        ENV_STATE_FILE="/tmp/task-env-state"
+        if [ -f "$ENV_STATE_FILE" ]; then
+          source "$ENV_STATE_FILE"
+          TOTAL_ENVS=$(echo $ALL_EXPECTED_ENVS | wc -w | tr -d ' ')
+          ENV_STATUS="$MISSING_ENVS of $TOTAL_ENVS missing"
+          if [ "$MISSING_ENVS" -gt 0 ]; then
+            ENV_RESULT="❌ NEEDS ATTENTION"
+          else
+            ENV_RESULT="✅ GOOD"
+          fi
+        else
+          ENV_STATUS="Status unknown"
+          ENV_RESULT="❓ UNKNOWN"
+        fi
+        
+        # Workflow data
+        WORKFLOW_COUNT=$(find .github/workflows -name "*.yml" -o -name "*.yaml" 2>/dev/null | wc -l | tr -d ' ')
+        if [ "$WORKFLOW_COUNT" -eq 0 ]; then
+          WORKFLOW_RESULT="❌ NO WORKFLOWS"
+        elif [ "$WORKFLOW_COUNT" -lt 3 ]; then
+          WORKFLOW_RESULT="⚠️ LIMITED COVERAGE"
+        else
+          WORKFLOW_RESULT="✅ GOOD COVERAGE"
+        fi
+        
+        # Branch protection
+        if gh api repos/:owner/:repo/branches/$DEFAULT_BRANCH/protection >/dev/null 2>&1; then
+          BRANCH_PROTECTION="✅ ENABLED"
+        else
+          BRANCH_PROTECTION="❌ DISABLED"
+        fi
+        
+        # Secrets
+        SECRET_COUNT=$(gh secret list 2>/dev/null | wc -l | tr -d ' ')
+        if [ "$SECRET_COUNT" -gt 0 ]; then
+          SECRETS_STATUS="✅ $SECRET_COUNT CONFIGURED"
+        else
+          SECRETS_STATUS="⚠️ NONE FOUND"
+        fi
+        
+        # Generate report
+        cat > health-report-{{.TIMESTAMP}}.md << EOF
+        # 🏥 Repository Health Report
+        
+        **Generated:** {{.REPORT_DATE}}  
+        **Repository:** $REPO_OWNER/$REPO_NAME  
+        **Branch:** $DEFAULT_BRANCH  
+        
+        ## 📊 Health Summary
+        
+        | Component | Status | Details |
+        |-----------|--------|---------|
+        | 🌍 Environments | $ENV_RESULT | $ENV_STATUS |
+        | ⚙️ Workflows | $WORKFLOW_RESULT | $WORKFLOW_COUNT files found |
+        | 🛡️ Branch Protection | $BRANCH_PROTECTION | For '$DEFAULT_BRANCH' branch |
+        | 🔑 Repository Secrets | $SECRETS_STATUS | Repository level |
+        
+        ## 🔍 Detailed Findings
+        
+        ### Environments
+        - **Expected:** $ALL_EXPECTED_ENVS
+        - **Missing:** $MISSING_ENVS environments need to be created
+        - **Action:** Run \`task setup-all-envs\` to create missing environments
+        
+        ### Workflows
+        - **Found:** $WORKFLOW_COUNT workflow files in .github/workflows/
+        - **Recommendation:** $([ "$WORKFLOW_COUNT" -lt 3 ] && echo "Consider adding test, build, deploy, and release workflows" || echo "Good workflow coverage")
+        
+        ### Security
+        - **Branch Protection:** $([ "$BRANCH_PROTECTION" = "❌ DISABLED" ] && echo "Not configured - run 'task setup-repo'" || echo "Properly configured")
+        - **Repository Secrets:** $SECRET_COUNT secrets configured
+        
+        ## 🚀 Recommended Actions
+        
+        EOF
+        
+        # Add numbered recommendations
+        ACTION_NUM=1
+        if [ "$MISSING_ENVS" -gt 0 ]; then
+          echo "$ACTION_NUM. **Create missing environments:** \`task setup-all-envs\`" >> health-report-{{.TIMESTAMP}}.md
+          ACTION_NUM=$((ACTION_NUM + 1))
+        fi
+        
+        if [ "$BRANCH_PROTECTION" = "❌ DISABLED" ]; then
+          echo "$ACTION_NUM. **Enable branch protection:** \`task setup-repo\`" >> health-report-{{.TIMESTAMP}}.md
+          ACTION_NUM=$((ACTION_NUM + 1))
+        fi
+        
+        if [ "$WORKFLOW_COUNT" -lt 3 ]; then
+          echo "$ACTION_NUM. **Add more workflows:** Consider test, build, deploy, release workflows" >> health-report-{{.TIMESTAMP}}.md
+        fi
+        
+        if [ "$ACTION_NUM" -eq 1 ]; then
+          echo "🎉 **No immediate actions required** - repository health looks good!" >> health-report-{{.TIMESTAMP}}.md
+        fi
+        
+        echo "" >> health-report-{{.TIMESTAMP}}.md
+        echo "---" >> health-report-{{.TIMESTAMP}}.md
+        echo "*Report generated by \`task doctor-with-report\`*" >> health-report-{{.TIMESTAMP}}.md
+        
+      - echo "📊 Detailed health report saved to health-report-{{.TIMESTAMP}}.md"
+
+  deploy:
+    desc: Deploy application (ENV=dev|staging|prod NETWORK=internal|public SERVICE=api)
+    cmds:
+      - ./scripts/task/deploy.sh {{.ENV | default "dev"}} {{.NETWORK | default "internal"}} {{.SERVICE | default "api"}}
+
+  deploy-all:
+    desc: Deploy to all environments
+    cmds:
+      - ./scripts/task/deploy-all.sh
+
+  setup-repo:
+    desc: Bootstrap repository setup
+    cmds:
+      - echo "🏗️ Setting up repository..."
+      - ./scripts/task/setup-secrets.sh {{.ENV | default "dev"}} {{.NETWORK | default "internal"}} {{.SERVICE | default "api"}}
+      - ./scripts/task/setup-environments.sh {{.ENV | default "dev"}} {{.NETWORK | default "internal"}}
+      - ./scripts/task/setup-branch-protection.sh
+      - echo "✅ Repository setup completed"
+
+  setup-all-envs:
+    desc: Setup all defined environments
+    cmds:
+      - ./scripts/task/setup-all-environments.sh
+
+  list-envs:
+    desc: List all defined environments
+    cmds:
+      - echo "📋 Configured Networks:"
+      - |
+        {{range .NETWORKS}}
+        echo "  - {{.}}"
+        {{end}}
+      - echo "📋 Configured Environments:"
+      - |
+        {{range .ENVIRONMENTS}}
+        echo "  - {{.}}"
+        {{end}}
+      - echo "📋 Configured Services:"
+      - |
+        {{range .SERVICES}}
+        echo "  - {{.}}"
+        {{end}}
+      - echo "📋 All Environment Combinations:"
+      - |
+        {{range .NETWORKS}}
+        {{$network := .}}
+        {{range $.ENVIRONMENTS}}
+        echo "  - {{$network}}-{{.}}"
+        {{end}}
+        {{end}}
+
+  install-act:
+    desc: Install nektos/act
+    status:
+      - command -v act
+    cmds:
+      - brew install act
+
+  install-scorecard:
+    desc: Install OSSF Scorecard
+    status:
+      - command -v scorecard
+    cmds:
+      - go install github.com/ossf/scorecard/v4@latest
+
+  install-gh:
+    desc: Install GitHub CLI
+    status:
+      - command -v gh
+    cmds:
+      - brew install gh
+
+  setup:
+    desc: Install all required tools
+    deps: [install-act, install-scorecard, install-gh]
+    cmds:
+      - echo "✅ All tools installed successfully"
+
+  ci-debug:
+    desc: Run act with debug output
+    cmds:
+      - act push --verbose --dryrun
+
+  ci-list:
+    desc: List available workflows for act
+    cmds:
+      - act --list
+
+  clean:
+    desc: Clean up generated files
+    cmds:
+      - rm -f {{.SCORECARD_RESULTS}}
+      - rm -f report.md
+      - echo "🧹 Cleanup completed"
+
+  report:
+    desc: Generate repository health report
+    deps: [scorecard-local]
+    cmds:
+      - ./scripts/task/generate-report.sh
+
+  init:
+    desc: Initialize repository with proper permissions
+    cmds:
+      - echo "🏗️ Initializing repository structure..."
+      - mkdir -p .github/workflows
+      - mkdir -p scripts
+      - chmod +x scripts/task/*.sh
+      - echo "✅ Repository initialization completed"
+      - echo "📝 Next steps:"
+      - echo "   1. Review and customize .github/workflows/*.yml"
+      - echo "   2. Run 'task setup' to install required tools"
+      - echo "   3. Run 'task doctor' to check repository health"
