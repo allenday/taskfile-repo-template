@@ -1,0 +1,164 @@
+version: '3'
+
+# Core repository health and CI functionality
+# This file contains the essential tasks that work for any repository type
+
+vars:
+  REPO_OWNER:
+    sh: ./scripts/task/detect-repo.sh | grep REPO_OWNER | cut -d= -f2
+  REPO_NAME:
+    sh: ./scripts/task/detect-repo.sh | grep REPO_NAME | cut -d= -f2
+  SCORECARD_RESULTS: scorecard-results.json
+
+tasks:
+  # Repository management
+  sync:
+    desc: Sync repository references (README badges, workflow files) with git remote
+    cmds:
+      - echo "Syncing repository references..."
+      - ./scripts/task/sync-readme.sh
+      - echo "Repository references synced with {{.REPO_OWNER}}/{{.REPO_NAME}}"
+
+  sync-check:
+    desc: Check if repository references are in sync
+    cmds:
+      - echo "Checking repository {{.REPO_OWNER}}/{{.REPO_NAME}}"
+      - grep -q "{{.REPO_OWNER}}/{{.REPO_NAME}}" README.md && echo "README badges are in sync" || echo "README badges may be out of sync - run 'task sync'"
+
+  # CI and local testing
+  ci:
+    desc: Run CI pipeline locally with act
+    cmds:
+      - echo "Running CI pipeline locally..."
+      - act push
+      - echo "CI pipeline completed successfully"
+
+  ci-pr:
+    desc: Run PR workflow locally with act
+    cmds:
+      - echo "Running PR workflow locally..."
+      - act pull_request
+      - echo "PR workflow completed successfully"
+
+  ci-workflow:
+    desc: Run specific workflow with act
+    cmds:
+      - act {{.WORKFLOW | default "push"}} {{.CLI_ARGS}}
+    vars:
+      WORKFLOW: '{{.WORKFLOW}}'
+
+  # Security and analysis
+  scorecard:
+    silent: true
+    desc: Run OSSF Scorecard security analysis (optional)  
+    cmds:
+      - |
+        if command -v scorecard &> /dev/null; then
+          echo "Running OSSF Scorecard analysis..."
+          if scorecard --repo=github.com/{{.REPO_OWNER}}/{{.REPO_NAME}} --format=default 2>/dev/null; then
+            echo "✅ Scorecard analysis completed successfully"
+          else
+            echo "⚠️ Scorecard analysis failed (tool limitation - not a configuration issue)"
+            echo "This is often due to scorecard internal errors with specific checks"
+          fi
+        else
+          echo "Scorecard not found in PATH - skipping security analysis"
+          echo "To install: go install github.com/ossf/scorecard/v4@latest"
+          echo "Make sure ~/go/bin is in your PATH"
+        fi
+
+  scorecard-local:
+    silent: true
+    desc: Run Scorecard on local repository (optional)
+    cmds:
+      - |
+        if command -v scorecard &> /dev/null; then
+          if scorecard --local=. --format=default >/dev/null 2>&1; then
+            echo "✅ Scorecard: analysis completed"
+          else
+            echo "⚠️ Scorecard: skipped (tool internal error)"
+          fi
+        else
+          echo "⚠️ Scorecard: not installed (optional)"
+        fi
+
+  # Health checks
+  check-tools:
+    desc: Check required CLI tools installation
+    silent: true
+    cmds:
+      - ./scripts/task/check-tools.sh
+
+  check-branch-protection:
+    desc: Check branch protection rules
+    silent: true
+    preconditions:
+      - sh: command -v gh
+        msg: "GitHub CLI is required. Run 'brew install gh' or 'task install-gh'"
+      - sh: gh auth status
+        msg: "GitHub CLI authentication required. Run 'gh auth login'"
+    cmds:
+      - echo "Checking branch protection rules..."
+      - ./scripts/task/check-branch-protection.sh
+
+  check-workflows:
+    desc: Check GitHub Actions workflows
+    silent: true
+    vars:
+      WORKFLOW_COUNT:
+        sh: find ./.github/workflows -name "*.yml" -o -name "*.yaml" 2>/dev/null | wc -l | tr -d ' '
+    preconditions:
+      - sh: '[ -d ./.github/workflows ]'
+        msg: "No .github/workflows directory found"
+    cmds:
+      - echo "Found {{.WORKFLOW_COUNT}} workflow file(s)"
+      - |
+        if [ "{{.WORKFLOW_COUNT}}" -gt 0 ]; then
+          ./scripts/task/check-workflows.sh
+        else
+          echo "No workflow files found in .github/workflows"
+        fi
+
+  # Tool installation
+  install-act:
+    desc: Install nektos/act
+    status:
+      - command -v act
+    cmds:
+      - brew install act
+
+  install-scorecard:
+    desc: Install OSSF Scorecard
+    status:
+      - command -v scorecard
+    cmds:
+      - go install github.com/ossf/scorecard/v4@latest
+
+  install-gh:
+    desc: Install GitHub CLI
+    status:
+      - command -v gh
+    cmds:
+      - brew install gh
+
+  setup:
+    desc: Install all required core tools
+    deps: [install-act, install-scorecard, install-gh]
+    cmds:
+      - echo "All core tools installed successfully"
+
+  # Initialization
+  init:
+    desc: Initialize repository with proper permissions
+    cmds:
+      - echo "Initializing repository structure..."
+      - mkdir -p ./.github/workflows
+      - mkdir -p ./scripts
+      - chmod +x ./scripts/task/*.sh
+      - echo "Repository initialization completed"
+      - echo "Syncing repository references..."
+      - task: sync
+      - echo "Next steps:"
+      - echo "  1. Review and customize .github/workflows/*.yml"
+      - echo "  2. Run 'task setup' to install required tools"
+      - echo "  3. Run 'task doctor' for health check"

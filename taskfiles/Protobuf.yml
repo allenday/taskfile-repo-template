@@ -1,0 +1,310 @@
+version: '3'
+
+# Protocol Buffers (protobuf) development tasks
+# Includes code generation, validation, and multi-language support
+
+vars:
+  PROTO_DIR: '{{.PROTO_DIR | default "proto"}}'
+  PROTO_OUT_DIR: '{{.PROTO_OUT_DIR | default "generated"}}'
+  PROTOC_VERSION: '{{.PROTOC_VERSION | default "25.1"}}'
+  
+  # Language-specific output directories
+  GO_OUT: '{{.GO_OUT | default "generated/go"}}'
+  PYTHON_OUT: '{{.PYTHON_OUT | default "generated/python"}}'
+  TS_OUT: '{{.TS_OUT | default "generated/typescript"}}'
+  JAVA_OUT: '{{.JAVA_OUT | default "generated/java"}}'
+  CPP_OUT: '{{.CPP_OUT | default "generated/cpp"}}'
+
+tasks:
+  # Tool installation
+  install-protoc:
+    desc: Install Protocol Buffers compiler
+    status:
+      - command -v protoc
+    cmds:
+      - |
+        case "{{OS}}" in
+          darwin)
+            if command -v brew &> /dev/null; then
+              brew install protobuf
+            else
+              echo "Please install protobuf manually or install Homebrew"
+              exit 1
+            fi
+            ;;
+          linux)
+            # Try apt-get first, then manual installation
+            if command -v apt-get &> /dev/null; then
+              sudo apt-get update && sudo apt-get install -y protobuf-compiler
+            else
+              echo "Manual protobuf installation required for this Linux distribution"
+              exit 1
+            fi
+            ;;
+          *)
+            echo "Unsupported OS: {{OS}}"
+            exit 1
+            ;;
+        esac
+
+  install-grpc-tools:
+    desc: Install gRPC tools for various languages
+    deps: [install-protoc]
+    cmds:
+      - echo "Installing gRPC tools..."
+      - |
+        # Go tools
+        if command -v go &> /dev/null; then
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+        fi
+      - |
+        # Python tools (if Python is available)
+        if command -v pip &> /dev/null; then
+          pip install grpcio-tools
+        fi
+      - |
+        # Node.js tools (if npm is available)
+        if command -v npm &> /dev/null; then
+          npm install -g @grpc/grpc-js @grpc/proto-loader
+          npm install -g ts-protoc-gen protoc-gen-ts
+        fi
+
+  # Directory setup
+  init-proto:
+    desc: Initialize protobuf directory structure
+    cmds:
+      - mkdir -p {{.PROTO_DIR}}
+      - mkdir -p {{.PROTO_OUT_DIR}}
+      - mkdir -p {{.GO_OUT}}
+      - mkdir -p {{.PYTHON_OUT}}
+      - mkdir -p {{.TS_OUT}}
+      - mkdir -p {{.JAVA_OUT}}
+      - mkdir -p {{.CPP_OUT}}
+      - echo "Protobuf directory structure created"
+
+  # Code generation
+  gen-go:
+    desc: Generate Go code from protobuf files
+    deps: [install-protoc, init-proto]
+    sources:
+      - "{{.PROTO_DIR}}/**/*.proto"
+    generates:
+      - "{{.GO_OUT}}/**/*.pb.go"
+    cmds:
+      - |
+        find {{.PROTO_DIR}} -name "*.proto" -exec protoc \
+          --go_out={{.GO_OUT}} \
+          --go-grpc_out={{.GO_OUT}} \
+          --proto_path={{.PROTO_DIR}} {} \;
+      - echo "Go protobuf code generated in {{.GO_OUT}}"
+
+  gen-python:
+    desc: Generate Python code from protobuf files
+    deps: [install-protoc, init-proto]
+    sources:
+      - "{{.PROTO_DIR}}/**/*.proto"
+    generates:
+      - "{{.PYTHON_OUT}}/**/*_pb2.py"
+    cmds:
+      - |
+        find {{.PROTO_DIR}} -name "*.proto" -exec protoc \
+          --python_out={{.PYTHON_OUT}} \
+          --grpc_python_out={{.PYTHON_OUT}} \
+          --proto_path={{.PROTO_DIR}} {} \;
+      - echo "Python protobuf code generated in {{.PYTHON_OUT}}"
+
+  gen-typescript:
+    desc: Generate TypeScript code from protobuf files
+    deps: [install-protoc, init-proto]
+    sources:
+      - "{{.PROTO_DIR}}/**/*.proto"
+    generates:
+      - "{{.TS_OUT}}/**/*.ts"
+    cmds:
+      - |
+        find {{.PROTO_DIR}} -name "*.proto" -exec protoc \
+          --plugin=protoc-gen-ts=./node_modules/.bin/protoc-gen-ts \
+          --ts_out={{.TS_OUT}} \
+          --proto_path={{.PROTO_DIR}} {} \;
+      - echo "TypeScript protobuf code generated in {{.TS_OUT}}"
+
+  gen-java:
+    desc: Generate Java code from protobuf files
+    deps: [install-protoc, init-proto]
+    sources:
+      - "{{.PROTO_DIR}}/**/*.proto"
+    generates:
+      - "{{.JAVA_OUT}}/**/*.java"
+    cmds:
+      - |
+        find {{.PROTO_DIR}} -name "*.proto" -exec protoc \
+          --java_out={{.JAVA_OUT}} \
+          --proto_path={{.PROTO_DIR}} {} \;
+      - echo "Java protobuf code generated in {{.JAVA_OUT}}"
+
+  gen-cpp:
+    desc: Generate C++ code from protobuf files
+    deps: [install-protoc, init-proto]
+    sources:
+      - "{{.PROTO_DIR}}/**/*.proto"
+    generates:
+      - "{{.CPP_OUT}}/**/*.pb.cc"
+      - "{{.CPP_OUT}}/**/*.pb.h"
+    cmds:
+      - |
+        find {{.PROTO_DIR}} -name "*.proto" -exec protoc \
+          --cpp_out={{.CPP_OUT}} \
+          --proto_path={{.PROTO_DIR}} {} \;
+      - echo "C++ protobuf code generated in {{.CPP_OUT}}"
+
+  gen-all:
+    desc: Generate code for all supported languages
+    deps: [gen-go, gen-python, gen-typescript, gen-java, gen-cpp]
+    cmds:
+      - echo "Code generation completed for all languages"
+
+  # Validation and linting
+  lint-proto:
+    desc: Lint protobuf files using buf
+    deps: [install-buf]
+    preconditions:
+      - test -d {{.PROTO_DIR}}
+    cmds:
+      - buf lint {{.PROTO_DIR}}
+
+  format-proto:
+    desc: Format protobuf files using buf
+    deps: [install-buf]
+    preconditions:
+      - test -d {{.PROTO_DIR}}
+    cmds:
+      - buf format -w {{.PROTO_DIR}}
+
+  validate-proto:
+    desc: Validate protobuf syntax and compatibility
+    deps: [install-protoc]
+    cmds:
+      - |
+        echo "Validating protobuf files..."
+        find {{.PROTO_DIR}} -name "*.proto" -exec protoc \
+          --proto_path={{.PROTO_DIR}} \
+          --descriptor_set_out=/dev/null {} \;
+      - echo "Protobuf validation completed"
+
+  # Buf tool installation and setup
+  install-buf:
+    desc: Install buf protobuf tool
+    status:
+      - command -v buf
+    cmds:
+      - |
+        case "{{OS}}" in
+          darwin)
+            if command -v brew &> /dev/null; then
+              brew install bufbuild/buf/buf
+            else
+              curl -sSL "https://github.com/bufbuild/buf/releases/latest/download/buf-$(uname -s)-$(uname -m)" -o /usr/local/bin/buf
+              chmod +x /usr/local/bin/buf
+            fi
+            ;;
+          linux)
+            curl -sSL "https://github.com/bufbuild/buf/releases/latest/download/buf-Linux-x86_64" -o /usr/local/bin/buf
+            chmod +x /usr/local/bin/buf
+            ;;
+          *)
+            echo "Unsupported OS: {{OS}}"
+            exit 1
+            ;;
+        esac
+
+  init-buf:
+    desc: Initialize buf configuration
+    deps: [install-buf]
+    generates:
+      - buf.yaml
+      - buf.gen.yaml
+    cmds:
+      - |
+        if [ ! -f buf.yaml ]; then
+          cat > buf.yaml << 'EOF'
+        version: v1
+        breaking:
+          use:
+            - FILE
+        lint:
+          use:
+            - DEFAULT
+        EOF
+        fi
+      - |
+        if [ ! -f buf.gen.yaml ]; then
+          cat > buf.gen.yaml << 'EOF'
+        version: v1
+        plugins:
+          - name: go
+            out: {{.GO_OUT}}
+            opt: paths=source_relative
+          - name: go-grpc
+            out: {{.GO_OUT}}
+            opt: paths=source_relative
+          - name: python
+            out: {{.PYTHON_OUT}}
+        EOF
+        fi
+      - echo "Buf configuration files created"
+
+  # Documentation
+  gen-docs:
+    desc: Generate protobuf documentation
+    deps: [install-protoc]
+    cmds:
+      - |
+        if command -v protoc-gen-doc &> /dev/null; then
+          protoc --doc_out=./docs --doc_opt=html,index.html --proto_path={{.PROTO_DIR}} {{.PROTO_DIR}}/*.proto
+        else
+          echo "Install protoc-gen-doc for documentation generation"
+          echo "https://github.com/pseudomuto/protoc-gen-doc"
+        fi
+
+  # Cleanup
+  clean-generated:
+    desc: Clean all generated protobuf code
+    cmds:
+      - rm -rf {{.PROTO_OUT_DIR}}
+      - echo "Generated protobuf code cleaned"
+
+  clean-all:
+    desc: Clean generated code and build artifacts
+    deps: [clean-generated]
+    cmds:
+      - rm -rf docs/
+      - echo "All protobuf artifacts cleaned"
+
+  # Development workflow
+  watch:
+    desc: Watch for protobuf changes and regenerate code
+    deps: [gen-all]
+    cmds:
+      - |
+        echo "Watching {{.PROTO_DIR}} for changes..."
+        if command -v fswatch &> /dev/null; then
+          fswatch -o {{.PROTO_DIR}} | while read; do task gen-all; done
+        elif command -v inotifywait &> /dev/null; then
+          while inotifywait -r -e modify {{.PROTO_DIR}}; do task gen-all; done
+        else
+          echo "Install fswatch (macOS) or inotify-tools (Linux) for watch functionality"
+        fi
+
+  # Setup and check
+  setup-protobuf:
+    desc: Complete protobuf development environment setup
+    deps: [install-protoc, install-grpc-tools, install-buf, init-proto, init-buf]
+    cmds:
+      - echo "Protobuf development environment ready"
+
+  check-proto:
+    desc: Run all protobuf checks (lint, validate, generate)
+    deps: [lint-proto, validate-proto, gen-all]
+    cmds:
+      - echo "All protobuf checks completed successfully"

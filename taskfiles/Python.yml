@@ -1,0 +1,169 @@
+version: '3'
+
+# Python-specific development tasks
+# Includes testing, linting, formatting, packaging, and virtual environment management
+
+vars:
+  PYTHON_VERSION: '{{.PYTHON_VERSION | default "3.11"}}'
+  VENV_DIR: '{{.VENV_DIR | default ".venv"}}'
+  PACKAGE_NAME:
+    sh: basename $(pwd) | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g'
+
+tasks:
+  # Environment setup
+  venv:
+    desc: Create Python virtual environment
+    status:
+      - test -d {{.VENV_DIR}}
+    cmds:
+      - python{{.PYTHON_VERSION}} -m venv {{.VENV_DIR}}
+      - echo "Virtual environment created at {{.VENV_DIR}}"
+      - echo "Activate with - source {{.VENV_DIR}}/bin/activate"
+
+  venv-clean:
+    desc: Remove Python virtual environment
+    cmds:
+      - rm -rf {{.VENV_DIR}}
+      - echo "Virtual environment removed"
+
+  install:
+    desc: Install Python dependencies
+    deps: [venv]
+    cmds:
+      - '{{.VENV_DIR}}/bin/pip install --upgrade pip'
+      - |
+        if [ -f requirements.txt ]; then
+          {{.VENV_DIR}}/bin/pip install -r requirements.txt
+        fi
+      - |
+        if [ -f requirements-dev.txt ]; then
+          {{.VENV_DIR}}/bin/pip install -r requirements-dev.txt
+        fi
+      - |
+        if [ -f pyproject.toml ]; then
+          {{.VENV_DIR}}/bin/pip install -e ".[dev]"
+        fi
+
+  install-dev:
+    desc: Install development dependencies
+    deps: [venv]
+    cmds:
+      - '{{.VENV_DIR}}/bin/pip install pytest pytest-cov black isort flake8 mypy pylint bandit safety'
+
+  # Code quality
+  format:
+    desc: Format Python code with black and isort
+    deps: [venv]
+    cmds:
+      - '{{.VENV_DIR}}/bin/black .'
+      - '{{.VENV_DIR}}/bin/isort .'
+
+  format-check:
+    desc: Check Python code formatting
+    deps: [venv]
+    cmds:
+      - '{{.VENV_DIR}}/bin/black --check .'
+      - '{{.VENV_DIR}}/bin/isort --check-only .'
+
+  lint:
+    desc: Run Python linting (flake8, pylint, mypy)
+    deps: [venv]
+    cmds:
+      - '{{.VENV_DIR}}/bin/flake8 .'
+      - '{{.VENV_DIR}}/bin/pylint **/*.py || true'
+      - '{{.VENV_DIR}}/bin/mypy . || true'
+
+  # Testing
+  test:
+    desc: Run Python tests with pytest
+    deps: [venv]
+    cmds:
+      - '{{.VENV_DIR}}/bin/pytest'
+
+  test-cov:
+    desc: Run Python tests with coverage
+    deps: [venv]
+    cmds:
+      - '{{.VENV_DIR}}/bin/pytest --cov={{.PACKAGE_NAME}} --cov-report=html --cov-report=term'
+
+  test-watch:
+    desc: Run Python tests in watch mode
+    deps: [venv]
+    cmds:
+      - '{{.VENV_DIR}}/bin/pytest-watch'
+
+  # Security
+  security:
+    desc: Run Python security checks
+    deps: [venv]
+    cmds:
+      - echo "Running bandit security analysis..."
+      - '{{.VENV_DIR}}/bin/bandit -r . -f json -o bandit-report.json || true'
+      - echo "Running safety dependency check..."
+      - '{{.VENV_DIR}}/bin/safety check --json --output safety-report.json || true'
+
+  # Package management
+  freeze:
+    desc: Generate requirements.txt from current environment
+    deps: [venv]
+    cmds:
+      - '{{.VENV_DIR}}/bin/pip freeze > requirements.txt'
+      - echo "Requirements saved to requirements.txt"
+
+  build:
+    desc: Build Python package
+    deps: [venv]
+    cmds:
+      - '{{.VENV_DIR}}/bin/pip install build'
+      - '{{.VENV_DIR}}/bin/python -m build'
+
+  publish:
+    desc: Publish package to PyPI
+    deps: [build]
+    cmds:
+      - '{{.VENV_DIR}}/bin/pip install twine'
+      - '{{.VENV_DIR}}/bin/twine upload dist/*'
+
+  # All-in-one tasks
+  check:
+    desc: Run all Python code quality checks
+    deps: [format-check, lint, test-cov, security]
+    cmds:
+      - echo "All Python checks completed successfully"
+
+  fix:
+    desc: Auto-fix Python code issues
+    deps: [format]
+    cmds:
+      - echo "Python code formatting applied"
+
+  setup-python:
+    desc: Complete Python development environment setup
+    deps: [venv, install, install-dev]
+    cmds:
+      - echo "Python development environment ready"
+      - echo "Activate with - source {{.VENV_DIR}}/bin/activate"
+
+  # Cleanup
+  clean:
+    desc: Clean Python build artifacts and cache
+    cmds:
+      - find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+      - find . -type f -name "*.pyc" -delete 2>/dev/null || true
+      - rm -rf build/ dist/ *.egg-info/ .pytest_cache/ .coverage htmlcov/
+      - rm -f bandit-report.json safety-report.json
+      - echo "Python artifacts cleaned"
+
+  # Docker support (if Dockerfile exists)
+  docker-build:
+    desc: Build Python Docker image
+    preconditions:
+      - test -f Dockerfile
+    cmds:
+      - docker build -t {{.PACKAGE_NAME}}:latest .
+
+  docker-run:
+    desc: Run Python application in Docker
+    deps: [docker-build]
+    cmds:
+      - docker run --rm -it {{.PACKAGE_NAME}}:latest
