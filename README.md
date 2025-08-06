@@ -1,5 +1,10 @@
 # Repository Health Template
 
+[![CI](https://github.com/allenday/taskfile-repo-template/workflows/CI/badge.svg)](https://github.com/allenday/taskfile-repo-template/actions/workflows/ci.yml)
+[![Scorecard Supply Chain Security](https://github.com/allenday/taskfile-repo-template/workflows/Scorecard%20Supply%20Chain%20Security/badge.svg)](https://github.com/allenday/taskfile-repo-template/actions/workflows/scorecard.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/allenday/taskfile-repo-template/badge)](https://scorecard.dev/viewer/?uri=github.com/allenday/taskfile-repo-template)
+[![Repository Health Check](https://github.com/allenday/taskfile-repo-template/workflows/Repository%20Health%20Check/badge.svg)](https://github.com/allenday/taskfile-repo-template/actions/workflows/health-check.yml)
+
 A comprehensive template for repository health checking using Taskfile, act, and OSSF Scorecard.
 
 ## Quick Start
@@ -73,6 +78,7 @@ task setup-repo ENV=staging VISIBILITY=private
 
 - `.github/workflows/ci.yml` - Main CI pipeline
 - `.github/workflows/health-check.yml` - Weekly repository health check
+- `.github/workflows/scorecard.yml` - OSSF Scorecard security analysis
 
 ### Repository Setup
 
