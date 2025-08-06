@@ -97,6 +97,12 @@ tasks:
       - echo "🛡️ Checking branch protection rules..."
       - ./scripts/task/check-branch-protection.sh
 
+  check-tools:
+    desc: Check required CLI tools installation
+    silent: true
+    cmds:
+      - ./scripts/task/check-tools.sh
+
   check-workflows:
     desc: Check GitHub Actions workflows
     silent: true
@@ -121,7 +127,7 @@ tasks:
     vars:
       TIMESTAMP:
         sh: date +"%Y-%m-%d %H:%M:%S"
-    deps: [check-envs-exist, check-secrets, check-branch-protection, check-workflows]
+    deps: [check-tools, check-envs-exist, check-secrets, check-branch-protection, check-workflows]
     cmds:
       - echo "🏥 REPOSITORY HEALTH CHECK REPORT"
       - echo "=================================================="
@@ -135,6 +141,21 @@ tasks:
       - echo ""
       - echo "📊 SUMMARY OF FINDINGS:"
       - echo "======================="
+      - |
+        # Read tools state
+        TOOLS_STATE_FILE="/tmp/task-tools-state"
+        if [ -f "$TOOLS_STATE_FILE" ]; then
+          source "$TOOLS_STATE_FILE"
+          echo "🔧 CLI Tools: $MISSING_TOOLS missing"
+          if [ "$MISSING_TOOLS" -gt 0 ]; then
+            echo "   ❌ Missing tools: $MISSING_TOOLS_LIST"
+            echo "   📋 Required for full functionality"
+          else
+            echo "   ✅ All required tools installed"
+          fi
+        else
+          echo "🔧 CLI Tools: Status unknown (check failed)"
+        fi
       - |
         # Read environment state
         ENV_STATE_FILE="/tmp/task-env-state"
@@ -222,7 +243,7 @@ tasks:
   doctor-with-report:
     desc: Run health check and generate detailed report
     silent: true
-    deps: [check-envs-exist, check-secrets, check-branch-protection, check-workflows]
+    deps: [check-tools, check-envs-exist, check-secrets, check-branch-protection, check-workflows]
     vars:
       TIMESTAMP:
         sh: date +"%Y%m%d-%H%M%S"
@@ -236,6 +257,22 @@ tasks:
         REPO_NAME=$(gh repo view --json name --jq .name 2>/dev/null || echo "unknown")
         REPO_OWNER=$(gh repo view --json owner --jq .owner.login 2>/dev/null || echo "unknown")
         DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name 2>/dev/null || echo "main")
+        
+        # Tools data
+        TOOLS_STATE_FILE="/tmp/task-tools-state"
+        if [ -f "$TOOLS_STATE_FILE" ]; then
+          source "$TOOLS_STATE_FILE"
+          if [ "$MISSING_TOOLS" -gt 0 ]; then
+            TOOLS_RESULT="❌ MISSING TOOLS"
+            TOOLS_STATUS="$MISSING_TOOLS missing: $MISSING_TOOLS_LIST"
+          else
+            TOOLS_RESULT="✅ ALL INSTALLED"
+            TOOLS_STATUS="All required tools available"
+          fi
+        else
+          TOOLS_RESULT="❓ UNKNOWN"
+          TOOLS_STATUS="Check failed"
+        fi
         
         # Environment data
         ENV_STATE_FILE="/tmp/task-env-state"
@@ -290,6 +327,7 @@ tasks:
         
         | Component | Status | Details |
         |-----------|--------|---------|
+        | 🔧 CLI Tools | $TOOLS_RESULT | $TOOLS_STATUS |
         | 🌍 Environments | $ENV_RESULT | $ENV_STATUS |
         | ⚙️ Workflows | $WORKFLOW_RESULT | $WORKFLOW_COUNT files found |
         | 🛡️ Branch Protection | $BRANCH_PROTECTION | For '$DEFAULT_BRANCH' branch |
