@@ -1,0 +1,35 @@
+name: Repository Health Check
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly on Monday at 6 AM UTC
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Install Task
+        run: |
+          sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+          
+      - name: Install required tools
+        run: |
+          task setup
+          
+      - name: Run repository health check
+        run: |
+          task doctor
+          
+      - name: Generate health report
+        run: |
+          task report
+          
+      - name: Upload health report
+        uses: actions/upload-artifact@v4
+        with:
+          name: repository-health-report
+          path: repository-health-report.md
