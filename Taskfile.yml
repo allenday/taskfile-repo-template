@@ -1,8 +1,10 @@
 version: '3'
 
 vars:
-  REPO_OWNER: '{{.REPO_OWNER | default "your-org"}}'
-  REPO_NAME: '{{.REPO_NAME | default "your-repo"}}'
+  REPO_OWNER:
+    sh: ./scripts/task/detect-repo.sh | grep REPO_OWNER | cut -d= -f2
+  REPO_NAME:
+    sh: ./scripts/task/detect-repo.sh | grep REPO_NAME | cut -d= -f2
   SCORECARD_RESULTS: scorecard-results.json
   
   # Environment configuration
@@ -479,6 +481,19 @@ tasks:
     cmds:
       - ./scripts/task/generate-report.sh
 
+  sync:
+    desc: Sync repository references (README badges, workflow files) with git remote
+    cmds:
+      - echo "Syncing repository references..."
+      - ./scripts/task/sync-readme.sh
+      - echo "Repository references synced with {{.REPO_OWNER}}/{{.REPO_NAME}}"
+
+  sync-check:
+    desc: Check if repository references are in sync
+    cmds:
+      - echo "Checking repository {{.REPO_OWNER}}/{{.REPO_NAME}}"
+      - grep -q "{{.REPO_OWNER}}/{{.REPO_NAME}}" README.md && echo "README badges are in sync" || echo "README badges may be out of sync - run 'task sync'"
+
   init:
     desc: Initialize repository with proper permissions
     cmds:
@@ -487,6 +502,8 @@ tasks:
       - mkdir -p scripts
       - chmod +x scripts/task/*.sh
       - echo "✅ Repository initialization completed"
+      - echo "Syncing repository references..."
+      - task sync
       - echo "📝 Next steps:"
       - echo "   1. Review and customize .github/workflows/*.yml"
       - echo "   2. Run 'task setup' to install required tools"
