@@ -22,30 +22,7 @@ tasks:
     status:
       - command -v protoc
     cmds:
-      - |
-        case "{{OS}}" in
-          darwin)
-            if command -v brew &> /dev/null; then
-              brew install protobuf
-            else
-              echo "Please install protobuf manually or install Homebrew"
-              exit 1
-            fi
-            ;;
-          linux)
-            # Try apt-get first, then manual installation
-            if command -v apt-get &> /dev/null; then
-              sudo apt-get update && sudo apt-get install -y protobuf-compiler
-            else
-              echo "Manual protobuf installation required for this Linux distribution"
-              exit 1
-            fi
-            ;;
-          *)
-            echo "Unsupported OS: {{OS}}"
-            exit 1
-            ;;
-        esac
+      - ./scripts/task/protobuf/install-protoc.sh {{OS}}
 
   install-grpc-tools:
     desc: Install gRPC tools for various languages
@@ -92,12 +69,7 @@ tasks:
     generates:
       - "{{.GO_OUT}}/**/*.pb.go"
     cmds:
-      - |
-        find {{.PROTO_DIR}} -name "*.proto" -exec protoc \
-          --go_out={{.GO_OUT}} \
-          --go-grpc_out={{.GO_OUT}} \
-          --proto_path={{.PROTO_DIR}} {} \;
-      - echo "Go protobuf code generated in {{.GO_OUT}}"
+      - ./scripts/task/protobuf/generate-code.sh go {{.PROTO_DIR}} {{.GO_OUT}}
 
   gen-python:
     desc: Generate Python code from protobuf files
@@ -107,12 +79,7 @@ tasks:
     generates:
       - "{{.PYTHON_OUT}}/**/*_pb2.py"
     cmds:
-      - |
-        find {{.PROTO_DIR}} -name "*.proto" -exec protoc \
-          --python_out={{.PYTHON_OUT}} \
-          --grpc_python_out={{.PYTHON_OUT}} \
-          --proto_path={{.PROTO_DIR}} {} \;
-      - echo "Python protobuf code generated in {{.PYTHON_OUT}}"
+      - ./scripts/task/protobuf/generate-code.sh python {{.PROTO_DIR}} {{.PYTHON_OUT}}
 
   gen-typescript:
     desc: Generate TypeScript code from protobuf files
@@ -122,12 +89,7 @@ tasks:
     generates:
       - "{{.TS_OUT}}/**/*.ts"
     cmds:
-      - |
-        find {{.PROTO_DIR}} -name "*.proto" -exec protoc \
-          --plugin=protoc-gen-ts=./node_modules/.bin/protoc-gen-ts \
-          --ts_out={{.TS_OUT}} \
-          --proto_path={{.PROTO_DIR}} {} \;
-      - echo "TypeScript protobuf code generated in {{.TS_OUT}}"
+      - ./scripts/task/protobuf/generate-code.sh typescript {{.PROTO_DIR}} {{.TS_OUT}}
 
   gen-java:
     desc: Generate Java code from protobuf files
@@ -137,11 +99,7 @@ tasks:
     generates:
       - "{{.JAVA_OUT}}/**/*.java"
     cmds:
-      - |
-        find {{.PROTO_DIR}} -name "*.proto" -exec protoc \
-          --java_out={{.JAVA_OUT}} \
-          --proto_path={{.PROTO_DIR}} {} \;
-      - echo "Java protobuf code generated in {{.JAVA_OUT}}"
+      - ./scripts/task/protobuf/generate-code.sh java {{.PROTO_DIR}} {{.JAVA_OUT}}
 
   gen-cpp:
     desc: Generate C++ code from protobuf files
@@ -152,11 +110,7 @@ tasks:
       - "{{.CPP_OUT}}/**/*.pb.cc"
       - "{{.CPP_OUT}}/**/*.pb.h"
     cmds:
-      - |
-        find {{.PROTO_DIR}} -name "*.proto" -exec protoc \
-          --cpp_out={{.CPP_OUT}} \
-          --proto_path={{.PROTO_DIR}} {} \;
-      - echo "C++ protobuf code generated in {{.CPP_OUT}}"
+      - ./scripts/task/protobuf/generate-code.sh cpp {{.PROTO_DIR}} {{.CPP_OUT}}
 
   gen-all:
     desc: Generate code for all supported languages
@@ -185,12 +139,7 @@ tasks:
     desc: Validate protobuf syntax and compatibility
     deps: [install-protoc]
     cmds:
-      - |
-        echo "Validating protobuf files..."
-        find {{.PROTO_DIR}} -name "*.proto" -exec protoc \
-          --proto_path={{.PROTO_DIR}} \
-          --descriptor_set_out=/dev/null {} \;
-      - echo "Protobuf validation completed"
+      - ./scripts/task/protobuf/validate-proto.sh {{.PROTO_DIR}}
 
   # Buf tool installation and setup
   install-buf:
@@ -198,25 +147,7 @@ tasks:
     status:
       - command -v buf
     cmds:
-      - |
-        case "{{OS}}" in
-          darwin)
-            if command -v brew &> /dev/null; then
-              brew install bufbuild/buf/buf
-            else
-              curl -sSL "https://github.com/bufbuild/buf/releases/latest/download/buf-$(uname -s)-$(uname -m)" -o /usr/local/bin/buf
-              chmod +x /usr/local/bin/buf
-            fi
-            ;;
-          linux)
-            curl -sSL "https://github.com/bufbuild/buf/releases/latest/download/buf-Linux-x86_64" -o /usr/local/bin/buf
-            chmod +x /usr/local/bin/buf
-            ;;
-          *)
-            echo "Unsupported OS: {{OS}}"
-            exit 1
-            ;;
-        esac
+      - ./scripts/task/protobuf/install-buf.sh {{OS}}
 
   init-buf:
     desc: Initialize buf configuration
@@ -225,34 +156,7 @@ tasks:
       - buf.yaml
       - buf.gen.yaml
     cmds:
-      - |
-        if [ ! -f buf.yaml ]; then
-          cat > buf.yaml << 'EOF'
-        version: v1
-        breaking:
-          use:
-            - FILE
-        lint:
-          use:
-            - DEFAULT
-        EOF
-        fi
-      - |
-        if [ ! -f buf.gen.yaml ]; then
-          cat > buf.gen.yaml << 'EOF'
-        version: v1
-        plugins:
-          - name: go
-            out: {{.GO_OUT}}
-            opt: paths=source_relative
-          - name: go-grpc
-            out: {{.GO_OUT}}
-            opt: paths=source_relative
-          - name: python
-            out: {{.PYTHON_OUT}}
-        EOF
-        fi
-      - echo "Buf configuration files created"
+      - ./scripts/task/protobuf/init-buf-config.sh {{.GO_OUT}} {{.PYTHON_OUT}}
 
   # Documentation
   gen-docs:

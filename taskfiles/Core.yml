@@ -22,8 +22,7 @@ tasks:
   sync-check:
     desc: Check if repository references are in sync
     cmds:
-      - echo "Checking repository {{.REPO_OWNER}}/{{.REPO_NAME}}"
-      - grep -q "{{.REPO_OWNER}}/{{.REPO_NAME}}" README.md && echo "README badges are in sync" || echo "README badges may be out of sync - run 'task sync'"
+      - ./scripts/task/core/sync-check.sh
 
   # CI and local testing
   ci:

@@ -31,18 +31,7 @@ tasks:
     deps: [venv]
     cmds:
       - '{{.VENV_DIR}}/bin/pip install --upgrade pip'
-      - |
-        if [ -f requirements.txt ]; then
-          {{.VENV_DIR}}/bin/pip install -r requirements.txt
-        fi
-      - |
-        if [ -f requirements-dev.txt ]; then
-          {{.VENV_DIR}}/bin/pip install -r requirements-dev.txt
-        fi
-      - |
-        if [ -f pyproject.toml ]; then
-          {{.VENV_DIR}}/bin/pip install -e ".[dev]"
-        fi
+      - ./scripts/task/python/install-dependencies.sh {{.VENV_DIR}}
 
   install-dev:
     desc: Install development dependencies
@@ -153,11 +142,7 @@ tasks:
   clean:
     desc: Clean Python build artifacts and cache
     cmds:
-      - find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-      - find . -type f -name "*.pyc" -delete 2>/dev/null || true
-      - rm -rf build/ dist/ *.egg-info/ .pytest_cache/ .coverage htmlcov/
-      - rm -f bandit-report.json safety-report.json
-      - echo "Python artifacts cleaned"
+      - ./scripts/task/python/clean-artifacts.sh
 
   # Docker support (if Dockerfile exists)
   docker-build:
