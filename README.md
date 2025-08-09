@@ -7,7 +7,196 @@
 
 A comprehensive template for repository health checking using Taskfile, act, and OSSF Scorecard.
 
-## Quick Start
+## Integration into Your Project
+
+To integrate this template into your existing project, follow these steps:
+
+### 1. Add as Git Submodule
+
+```bash
+# Create third_party directory for external dependencies
+mkdir -p third_party
+
+# Add the template as a git submodule
+git submodule add git@github.com:allenday/taskfile-repo-template.git third_party/taskfile-repo-template
+```
+
+### 2. Create Project Structure
+
+```bash
+# Create required directories
+mkdir -p taskfiles scripts/task
+
+# Create your main Taskfile.yml (includes template modules)
+cat > Taskfile.yml << 'EOF'
+version: '3'
+
+includes:
+  # Core repository health and CI tasks (always included)
+  core:
+    taskfile: ./taskfiles/Core.yml
+    dir: .
+  
+  # Optional technology-specific extensions
+  python:
+    taskfile: ./taskfiles/Python.yml
+    optional: true
+    aliases: [py]
+  
+  protobuf:
+    taskfile: ./taskfiles/Protobuf.yml
+    optional: true
+    aliases: [proto, pb]
+  
+  # Container orchestration (optional)
+  container:
+    taskfile: ./taskfiles/Container.yml
+    optional: true
+    aliases: [docker]
+  
+  # Secret management
+  secrets:
+    taskfile: ./taskfiles/Secrets.yml
+    optional: true
+    aliases: [bws]
+  
+  # Application-specific tasks (customize for your project)
+  app:
+    taskfile: ./taskfiles/App.yml
+    aliases: [myapp]  # Replace with your app name
+
+vars:
+  REPO_OWNER:
+    sh: ./scripts/task/detect-repo.sh | grep REPO_OWNER | cut -d= -f2
+  REPO_NAME:
+    sh: ./scripts/task/detect-repo.sh | grep REPO_NAME | cut -d= -f2
+
+tasks:
+  default:
+    desc: List all available tasks across modules
+    cmds:
+      - task --list
+
+  doctor:
+    desc: Complete repository health check (core + technology-specific)
+    cmds:
+      - echo "🏥 COMPREHENSIVE REPOSITORY HEALTH CHECK"
+      - echo "========================================"
+      - echo ""
+      - task core:doctor || echo "⚠️  Core health check found issues (see above)"
+      - echo ""
+      - task container:doctor 2>/dev/null || echo "⏭️  Container checks skipped (no container environment detected)"
+      - echo ""
+      - task python:doctor 2>/dev/null || echo "⏭️  Python checks skipped (no Python project detected)"
+      - echo ""
+      - task protobuf:doctor 2>/dev/null || echo "⏭️  Protobuf checks skipped (no protobuf project detected)"
+      - echo ""
+      - task secrets:doctor 2>/dev/null || echo "⏭️  Secrets checks skipped (Bitwarden Secrets not configured)"
+      - echo ""
+      - echo "🎉 COMPREHENSIVE HEALTH CHECK COMPLETED"
+      - echo "========================================"
+EOF
+```
+
+### 3. Create Symlinks to Template
+
+```bash
+# Symlink template taskfiles to your taskfiles directory
+cd taskfiles
+ln -sf ../third_party/taskfile-repo-template/taskfiles/Core.yml Core.yml
+ln -sf ../third_party/taskfile-repo-template/taskfiles/Python.yml Python.yml
+ln -sf ../third_party/taskfile-repo-template/taskfiles/Protobuf.yml Protobuf.yml
+ln -sf ../third_party/taskfile-repo-template/taskfiles/Container.yml Container.yml
+ln -sf ../third_party/taskfile-repo-template/taskfiles/Secrets.yml Secrets.yml
+
+# Symlink template scripts to your scripts directory
+cd ../scripts/task
+ln -sf ../../third_party/taskfile-repo-template/scripts/task/check-tools.sh check-tools.sh
+ln -sf ../../third_party/taskfile-repo-template/scripts/task/detect-repo.sh detect-repo.sh
+ln -sf ../../third_party/taskfile-repo-template/scripts/task/core core
+ln -sf ../../third_party/taskfile-repo-template/scripts/task/python python
+ln -sf ../../third_party/taskfile-repo-template/scripts/task/protobuf protobuf
+ln -sf ../../third_party/taskfile-repo-template/scripts/task/container container
+ln -sf ../../third_party/taskfile-repo-template/scripts/task/secrets secrets
+
+# Go back to project root
+cd ../..
+```
+
+### 4. Create Application-Specific Tasks
+
+```bash
+# Create your application-specific taskfile
+cat > taskfiles/App.yml << 'EOF'
+version: '3'
+
+vars:
+  APP_NAME: 'myapp'  # Replace with your application name
+
+tasks:
+  setup:
+    desc: Setup application environment
+    cmds:
+      - echo "Setting up {{.APP_NAME}}..."
+      # Add your application setup commands here
+
+  test:
+    desc: Run application tests
+    cmds:
+      - echo "Running {{.APP_NAME}} tests..."
+      # Add your test commands here
+
+  deploy:
+    desc: Deploy application
+    cmds:
+      - echo "Deploying {{.APP_NAME}}..."
+      # Add your deployment commands here
+
+  doctor:
+    desc: Application health check
+    cmds:
+      - echo "🔍 {{.APP_NAME}} HEALTH CHECK"
+      - echo "========================="
+      # Add your application-specific health checks here
+      - echo "✅ Application health check completed"
+EOF
+```
+
+### 5. Create GitHub Workflows (Optional)
+
+```bash
+# Create .github/workflows directory if it doesn't exist
+mkdir -p .github/workflows
+
+# Copy template workflows (customize as needed)
+cp third_party/taskfile-repo-template/.github/workflows/ci.yml .github/workflows/
+cp third_party/taskfile-repo-template/.github/workflows/health-check.yml .github/workflows/
+
+# Customize workflows for your project needs
+```
+
+### 6. Initialize and Test
+
+```bash
+# Add all changes to git
+git add .
+
+# Test the integration
+task --list  # Should show all available tasks
+task core:doctor  # Test core health checks
+task doctor  # Run comprehensive health check
+
+# Commit the integration
+git commit -m "feat: integrate taskfile-repo-template
+
+- Add template as git submodule
+- Create modular Taskfile.yml with optional includes  
+- Symlink template taskfiles and scripts
+- Add application-specific App.yml taskfile
+- Enable comprehensive health monitoring with task doctor"
+```
+
+## Quick Start (For Template Users)
 
 1. **Initialize the repository:**
    ```bash
@@ -23,6 +212,61 @@ A comprehensive template for repository health checking using Taskfile, act, and
    ```bash
    task doctor
    ```
+
+## Modular Doctor System
+
+The template includes a comprehensive health monitoring system with specialized doctor scripts for different technology domains:
+
+### Core Health Checks
+
+```bash
+task core:doctor        # Repository, Git, CLI tools
+task container:doctor   # Docker, Compose, deployments
+task python:doctor      # Virtual environments, dependencies
+task protobuf:doctor    # Protocol Buffers tooling, project structure
+task secrets:doctor     # Bitwarden Secrets Manager integration
+```
+
+### Unified Health Check
+
+```bash
+task doctor  # Runs all applicable health checks with smart detection
+```
+
+The unified doctor automatically detects your project type and runs relevant checks:
+- ✅ **Always runs**: Core repository health checks
+- 🔍 **Auto-detects**: Container environments (Docker, Kubernetes)
+- 🐍 **Auto-detects**: Python projects (requirements.txt, pyproject.toml)
+- ⚡ **Auto-detects**: Protobuf projects (proto/ directory, *.proto files)
+- 🔐 **Configurable**: Bitwarden Secrets (BWS_ACCESS_TOKEN, BWS_PROJECT_ID)
+
+### Example Output
+
+```bash
+$ task doctor
+🏥 COMPREHENSIVE REPOSITORY HEALTH CHECK
+========================================
+
+🏥 CORE REPOSITORY HEALTH CHECK
+===============================
+✅ Git: 2.43.0
+✅ GitHub CLI: 2.74.2 
+✅ GitHub Auth: Authenticated as username
+⚠️  OSSF Scorecard: Not installed (optional)
+
+🔍 CONTAINER ENVIRONMENT HEALTH CHECK
+=====================================
+✅ Docker: 24.0.7 (running)
+✅ Docker Compose: 2.38.2 (built-in)
+✅ deploy/docker-compose.yml syntax is valid
+
+🐍 PYTHON DEVELOPMENT ENVIRONMENT HEALTH CHECK
+==============================================
+ℹ️  No Python project detected - skipping Python health checks
+
+🎉 COMPREHENSIVE HEALTH CHECK COMPLETED
+========================================
+```
 
 ## Available Tasks
 
@@ -169,11 +413,50 @@ Edit `Taskfile.yml` to customize:
    task ci-debug  # Run with verbose output
    ```
 
+### Integration Issues
+
+1. **Symlinks not working**
+   ```bash
+   # Check if symlinks are created correctly
+   ls -la taskfiles/
+   ls -la scripts/task/
+   
+   # Recreate broken symlinks
+   rm -f taskfiles/Core.yml
+   ln -sf ../third_party/taskfile-repo-template/taskfiles/Core.yml taskfiles/Core.yml
+   ```
+
+2. **Submodule update issues**
+   ```bash
+   # Update submodule to latest
+   git submodule update --remote third_party/taskfile-repo-template
+   
+   # Initialize submodules after cloning
+   git submodule update --init --recursive
+   ```
+
+3. **Task not found errors**
+   ```bash
+   # Verify taskfile includes are correct
+   task --list
+   
+   # Check for missing symlinks
+   task core:doctor 2>&1 | grep "No such file"
+   ```
+
+4. **Permission denied on scripts**
+   ```bash
+   # Fix script permissions
+   chmod +x scripts/task/*/doctor.sh
+   chmod +x third_party/taskfile-repo-template/scripts/task/*/doctor.sh
+   ```
+
 ### Getting Help
 
 - Run `task --list` for available commands
 - Check `task doctor` output for specific issues
 - Review generated `repository-health-report.md`
+- Verify symlinks: `ls -la taskfiles/ scripts/task/`
 
 ## Integration
 
@@ -185,3 +468,111 @@ This template integrates with:
 - **Taskfile** - Modern task runner with named arguments
 
 Perfect for teams wanting comprehensive repository health monitoring with local testing capabilities.
+
+## Advanced Customization
+
+### Adding Custom Doctor Scripts
+
+Create domain-specific health checks for your technology stack:
+
+```bash
+# Create custom doctor script
+mkdir -p scripts/task/mytech
+cat > scripts/task/mytech/doctor.sh << 'EOF'
+#!/bin/bash
+set -euo pipefail
+
+echo "🔍 MY TECHNOLOGY HEALTH CHECK"
+echo "============================"
+echo ""
+
+# Check if project uses your technology
+if [ ! -f "mytech.config" ]; then
+    echo "ℹ️  No MyTech project detected - skipping checks"
+    exit 0
+fi
+
+# Add your health checks here
+echo "✅ MyTech configuration valid"
+echo "✅ MyTech dependencies installed"
+
+echo ""
+echo "🎯 Summary: MyTech environment is healthy"
+EOF
+
+chmod +x scripts/task/mytech/doctor.sh
+```
+
+### Creating Custom Taskfiles
+
+Extend the template with your own taskfile modules:
+
+```bash
+# Create custom taskfile
+cat > taskfiles/MyTech.yml << 'EOF'
+version: '3'
+
+vars:
+  MYTECH_CONFIG: mytech.config
+
+tasks:
+  doctor:
+    desc: MyTech development environment health check
+    cmds:
+      - ./scripts/task/mytech/doctor.sh
+
+  setup:
+    desc: Setup MyTech development environment
+    cmds:
+      - echo "Setting up MyTech..."
+      - # Add setup commands
+
+  test:
+    desc: Run MyTech tests
+    cmds:
+      - echo "Running MyTech tests..."
+      - # Add test commands
+EOF
+```
+
+Then include it in your main Taskfile.yml:
+
+```yaml
+includes:
+  mytech:
+    taskfile: ./taskfiles/MyTech.yml
+    optional: true
+    aliases: [mt]
+```
+
+### Environment-Specific Configuration
+
+Create environment-specific configurations:
+
+```bash
+# Development environment
+export BWS_ACCESS_TOKEN="your-dev-token"
+export BWS_PROJECT_ID="your-dev-project-id"
+
+# Production environment  
+export BWS_ACCESS_TOKEN="your-prod-token"
+export BWS_PROJECT_ID="your-prod-project-id"
+
+# Test all environments
+for env in dev staging prod; do
+    echo "Testing $env environment..."
+    ENV=$env task doctor
+done
+```
+
+## Contributing
+
+To contribute improvements back to the template:
+
+1. Fork the repository
+2. Create a feature branch
+3. Add your improvements (new doctor scripts, taskfiles, etc.)
+4. Test with multiple project types
+5. Submit a pull request
+
+The template is designed to be extensible and welcomes contributions for new technology domains!
