@@ -51,35 +51,13 @@ tasks:
     silent: true
     desc: Run OSSF Scorecard security analysis (optional)  
     cmds:
-      - |
-        if command -v scorecard &> /dev/null; then
-          echo "Running OSSF Scorecard analysis..."
-          if scorecard --repo=github.com/{{.REPO_OWNER}}/{{.REPO_NAME}} --format=default 2>/dev/null; then
-            echo "✅ Scorecard analysis completed successfully"
-          else
-            echo "⚠️ Scorecard analysis failed (tool limitation - not a configuration issue)"
-            echo "This is often due to scorecard internal errors with specific checks"
-          fi
-        else
-          echo "Scorecard not found in PATH - skipping security analysis"
-          echo "To install: go install github.com/ossf/scorecard/v4@latest"
-          echo "Make sure ~/go/bin is in your PATH"
-        fi
+      - ./scripts/task/core/scorecard-analysis.sh {{.REPO_OWNER}} {{.REPO_NAME}}
 
   scorecard-local:
     silent: true
     desc: Run Scorecard on local repository (optional)
     cmds:
-      - |
-        if command -v scorecard &> /dev/null; then
-          if scorecard --local=. --format=default >/dev/null 2>&1; then
-            echo "✅ Scorecard: analysis completed"
-          else
-            echo "⚠️ Scorecard: skipped (tool internal error)"
-          fi
-        else
-          echo "⚠️ Scorecard: not installed (optional)"
-        fi
+      - ./scripts/task/core/scorecard-local.sh
 
   # Health checks
   doctor:
@@ -116,12 +94,7 @@ tasks:
         msg: "No .github/workflows directory found"
     cmds:
       - echo "Found {{.WORKFLOW_COUNT}} workflow file(s)"
-      - |
-        if [ "{{.WORKFLOW_COUNT}}" -gt 0 ]; then
-          ./scripts/task/core/check-workflows.sh
-        else
-          echo "No workflow files found in .github/workflows"
-        fi
+      - ./scripts/task/core/check-workflows-wrapper.sh {{.WORKFLOW_COUNT}}
 
   # Tool installation
   install-act:

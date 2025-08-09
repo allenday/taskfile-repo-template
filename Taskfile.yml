@@ -91,79 +91,30 @@ tasks:
     desc: Setup complete development environment (core + detected languages)
     cmds:
       - task core:setup
-      - |
-        echo "Setting up language-specific environments..."
-        if [ -f requirements.txt ] || [ -f pyproject.toml ] || [ -f setup.py ]; then
-          echo "Python project detected - setting up Python environment"
-          task python:setup-python 2>/dev/null || echo "Python tasks not available"
-        fi
-      - |
-        if [ -d proto ] || find . -name "*.proto" | head -1 | grep -q .; then
-          echo "Protocol Buffers detected - setting up protobuf environment"
-          task protobuf:setup-protobuf 2>/dev/null || echo "Protobuf tasks not available"
-        fi
-      - |
-        task container:setup 2>/dev/null || echo "Container setup not available"
+      - ./scripts/task/__taskfile__/setup-languages.sh
+      - ./scripts/task/__taskfile__/setup-protobuf.sh
+      - ./scripts/task/__taskfile__/setup-container.sh
       - echo "Development environment setup completed"
 
   test:
     desc: Run all available tests (core + language-specific)
     cmds:
-      - |
-        echo "Running comprehensive test suite..."
-        # Run Python tests if available
-        if [ -f requirements.txt ] || [ -f pyproject.toml ]; then
-          task python:test 2>/dev/null || echo "Python tests not available"
-        fi
-        echo "All tests completed"
+      - ./scripts/task/__taskfile__/run-tests.sh
 
   lint:
     desc: Run all linting tools (core + language-specific)
     cmds:
-      - |
-        echo "Running comprehensive linting..."
-        # Run Python linting if available
-        if [ -f requirements.txt ] || [ -f pyproject.toml ]; then
-          task python:lint 2>/dev/null || echo "Python linting not available"
-        fi
-        # Run protobuf linting if available  
-        if [ -d proto ] || find . -name "*.proto" | head -1 | grep -q .; then
-          task protobuf:lint-proto 2>/dev/null || echo "Protobuf linting not available"
-        fi
-        echo "All linting completed"
+      - ./scripts/task/__taskfile__/run-linting.sh
 
   format:
     desc: Format all code (language-specific formatters)
     cmds:
-      - |
-        echo "Formatting all code..."
-        # Format Python code if available
-        if [ -f requirements.txt ] || [ -f pyproject.toml ]; then
-          task python:format 2>/dev/null || echo "Python formatting not available"
-        fi
-        # Format protobuf files if available
-        if [ -d proto ] || find . -name "*.proto" | head -1 | grep -q .; then
-          task protobuf:format-proto 2>/dev/null || echo "Protobuf formatting not available"
-        fi
-        echo "All formatting completed"
+      - ./scripts/task/__taskfile__/format-code.sh
 
   clean:
     desc: Clean all build artifacts and generated files
     cmds:
-      - |
-        echo "Cleaning all artifacts..."
-        # Clean Python artifacts if available
-        if [ -f requirements.txt ] || [ -f pyproject.toml ]; then
-          task python:clean 2>/dev/null || echo "Python cleanup not available"
-        fi
-        # Clean protobuf artifacts if available
-        if [ -d proto ] || find . -name "*.proto" | head -1 | grep -q .; then
-          task protobuf:clean-all 2>/dev/null || echo "Protobuf cleanup not available"
-        fi
-        # Clean core artifacts
-        rm -f {{.SCORECARD_RESULTS}}
-        rm -f report.md
-        echo "All cleanup completed"
+      - ./scripts/task/__taskfile__/clean-artifacts.sh {{.SCORECARD_RESULTS}}
 
   # Health check that includes all modules
   check:
@@ -172,18 +123,7 @@ tasks:
     cmds:
       - task core:check-tools
       - task core:scorecard-local
-      - |
-        # Run Python checks if available
-        if [ -f requirements.txt ] || [ -f pyproject.toml ]; then
-          task python:check 2>/dev/null || echo "Python checks not available"
-        fi
-        # Run protobuf checks if available
-        if [ -d proto ] || find . -name "*.proto" | head -1 | grep -q .; then
-          task protobuf:check-proto 2>/dev/null || echo "Protobuf checks not available"  
-        fi
-        # Run container checks if available
-        task container:check 2>/dev/null || echo "Container checks not available"
-        echo "Comprehensive checks completed"
+      - ./scripts/task/__taskfile__/run-checks.sh
 
   # Environment-specific tasks (multi-environment support)
   check-envs-exist:
@@ -195,10 +135,7 @@ tasks:
     generates:
       - /tmp/task-env-state
     cmds:
-      - |
-        envs="{{range .NETWORKS}}{{$network := .}}{{range $.ENVIRONMENTS}}{{$network}}-{{.}} {{end}}{{end}}"
-        echo "Checking environments: $envs"
-        ./scripts/task/__taskfile__/check-environments.sh $envs
+      - ./scripts/task/__taskfile__/check-environments-wrapper.sh {{range .NETWORKS}}{{$network := .}}{{range $.ENVIRONMENTS}}{{$network}}-{{.}} {{end}}{{end}}
 
   check-secrets:
     desc: Check repository and environment secrets
@@ -209,10 +146,7 @@ tasks:
       - /tmp/task-env-state
       - Taskfile.yml
     cmds:
-      - |
-        envs="{{range .NETWORKS}}{{$network := .}}{{range $.ENVIRONMENTS}}{{$network}}-{{.}} {{end}}{{end}}"
-        echo "Checking secrets for environments: $envs"
-        ./scripts/task/__taskfile__/check-secrets.sh $envs
+      - ./scripts/task/__taskfile__/check-secrets-wrapper.sh {{range .NETWORKS}}{{$network := .}}{{range $.ENVIRONMENTS}}{{$network}}-{{.}} {{end}}{{end}}
 
   # Comprehensive health check with modular support
   doctor:

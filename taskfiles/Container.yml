@@ -25,13 +25,7 @@ tasks:
     desc: Run container environment checks (called by main health check)
     silent: true
     cmds:
-      - |
-        if ./scripts/task/container/detect-environment.sh >/dev/null 2>&1; then
-          echo "Container environment detected - running container health checks..."
-          ./scripts/task/container/doctor.sh
-        else
-          echo "No container environment detected"
-        fi
+      - ./scripts/task/container/check-environment.sh
 
   setup:
     desc: Setup container environment (called by main setup)
