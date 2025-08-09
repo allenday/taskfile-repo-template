@@ -17,6 +17,12 @@ includes:
     taskfile: ./taskfiles/Protobuf.yml
     optional: true
     aliases: [proto, pb]
+  
+  # Container orchestration (optional)
+  container:
+    taskfile: ./taskfiles/Container.yml
+    optional: true
+    aliases: [docker]
 
 vars:
   REPO_OWNER:
@@ -35,6 +41,7 @@ vars:
     - prod
   SERVICES:
     - api
+    - gitlab
 
 tasks:
   default:
@@ -47,6 +54,11 @@ tasks:
     desc: Run CI pipeline locally with act
     cmds:
       - task core:ci
+
+  app-ci:
+    desc: Test application workflow locally with act
+    cmds:
+      - task container:ci-test
 
   scorecard:
     desc: Run OSSF Scorecard security analysis
@@ -79,6 +91,8 @@ tasks:
           echo "Protocol Buffers detected - setting up protobuf environment"
           task protobuf:setup-protobuf 2>/dev/null || echo "Protobuf tasks not available"
         fi
+      - |
+        task container:setup 2>/dev/null || echo "Container setup not available"
       - echo "Development environment setup completed"
 
   test:
@@ -156,6 +170,8 @@ tasks:
         if [ -d proto ] || find . -name "*.proto" | head -1 | grep -q .; then
           task protobuf:check-proto 2>/dev/null || echo "Protobuf checks not available"  
         fi
+        # Run container checks if available
+        task container:check 2>/dev/null || echo "Container checks not available"
         echo "Comprehensive checks completed"
 
   # Environment-specific tasks (multi-environment support)
