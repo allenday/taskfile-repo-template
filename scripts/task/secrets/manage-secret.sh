@@ -17,26 +17,53 @@ if [ -z "$SECRET_NAME" ]; then
     exit 1
 fi
 
+# Helper function to find secret ID by name
+find_secret_id() {
+    local secret_name="$1"
+    bws secret list "$BWS_PROJECT_ID" --output json 2>/dev/null | \
+        jq -r --arg name "$secret_name" '.[] | select(.key == $name) | .id' 2>/dev/null || echo ""
+}
+
 case "$ACTION" in
     get)
-        bws secret get "$SECRET_NAME" --project-id "$BWS_PROJECT_ID"
+        SECRET_ID=$(find_secret_id "$SECRET_NAME")
+        if [ -z "$SECRET_ID" ]; then
+            echo "❌ Secret '$SECRET_NAME' not found in project"
+            exit 1
+        fi
+        bws secret get "$SECRET_ID"
         ;;
     create)
         if [ -z "$SECRET_VALUE" ]; then
             echo "❌ SECRET_VALUE is required for create action"
             exit 1
         fi
-        bws secret create "$SECRET_NAME" "$SECRET_VALUE" --project-id "$BWS_PROJECT_ID"
+        # Check if secret already exists
+        if [ -n "$(find_secret_id "$SECRET_NAME")" ]; then
+            echo "❌ Secret '$SECRET_NAME' already exists. Use 'update' to modify it."
+            exit 1
+        fi
+        bws secret create "$SECRET_NAME" "$SECRET_VALUE" "$BWS_PROJECT_ID"
         ;;
     update)
         if [ -z "$SECRET_VALUE" ]; then
             echo "❌ SECRET_VALUE is required for update action"
             exit 1
         fi
-        bws secret edit "$SECRET_NAME" --value "$SECRET_VALUE" --project-id "$BWS_PROJECT_ID"
+        SECRET_ID=$(find_secret_id "$SECRET_NAME")
+        if [ -z "$SECRET_ID" ]; then
+            echo "❌ Secret '$SECRET_NAME' not found in project"
+            exit 1
+        fi
+        bws secret edit --value "$SECRET_VALUE" "$SECRET_ID"
         ;;
     delete)
-        bws secret delete "$SECRET_NAME" --project-id "$BWS_PROJECT_ID"
+        SECRET_ID=$(find_secret_id "$SECRET_NAME")
+        if [ -z "$SECRET_ID" ]; then
+            echo "❌ Secret '$SECRET_NAME' not found in project"
+            exit 1
+        fi
+        bws secret delete "$SECRET_ID"
         ;;
     *)
         echo "❌ Invalid action: $ACTION"

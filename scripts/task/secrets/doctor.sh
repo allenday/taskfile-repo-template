@@ -39,15 +39,15 @@ echo ""
 # Test connectivity if properly configured
 if [ -n "$BWS_ACCESS_TOKEN" ] && [ -n "$BWS_PROJECT_ID" ] && command -v bws >/dev/null 2>&1; then
   echo "🌐 Connectivity Test:"
-  if bws secret list --project-id "$BWS_PROJECT_ID" >/dev/null 2>&1; then
-    SECRET_COUNT=$(bws secret list --project-id "$BWS_PROJECT_ID" --output json 2>/dev/null | jq '. | length' 2>/dev/null || echo "unknown")
+  if bws secret list "$BWS_PROJECT_ID" >/dev/null 2>&1; then
+    SECRET_COUNT=$(bws secret list "$BWS_PROJECT_ID" --output json 2>/dev/null | jq '. | length' 2>/dev/null || echo "unknown")
     echo "✅ Successfully connected to Bitwarden Secrets"
     echo "   Project contains $SECRET_COUNT secrets"
     
     # Check for GitLab-related secrets
     echo ""
     echo "🔍 GitLab Integration Secrets:"
-    GITLAB_SECRETS=$(bws secret list --project-id "$BWS_PROJECT_ID" --output json 2>/dev/null | jq -r '.[].key' 2>/dev/null | grep -i gitlab || echo "")
+    GITLAB_SECRETS=$(bws secret list "$BWS_PROJECT_ID" --output json 2>/dev/null | jq -r '.[].key' 2>/dev/null | grep -i gitlab || echo "")
     if [ -n "$GITLAB_SECRETS" ]; then
       echo "$GITLAB_SECRETS" | while read -r secret; do
         echo "✅ Found: $secret"
