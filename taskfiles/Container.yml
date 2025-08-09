@@ -1,0 +1,135 @@
+version: '3'
+
+vars:
+  IMAGE_NAME: '{{.IMAGE_NAME | default .REPO_NAME}}'
+
+tasks:
+  check-docker:
+    desc: Check Docker installation
+    silent: true
+    cmds:
+      - |
+        if command -v docker &> /dev/null; then
+          if docker info &> /dev/null; then
+            echo "Docker: installed and running"
+          else
+            echo "Docker: installed but not running"
+          fi
+        else
+          echo "Docker: not installed"
+        fi
+
+  check-compose:
+    desc: Check Docker Compose installation
+    silent: true
+    cmds:
+      - |
+        if docker compose version &> /dev/null; then
+          echo "Docker Compose: available (built-in)"
+        elif command -v docker-compose &> /dev/null; then
+          echo "Docker Compose: available (standalone)"
+        else
+          echo "Docker Compose: not available"
+        fi
+
+  doctor:
+    desc: Run comprehensive container environment health check
+    cmds:
+      - ./scripts/task/container/doctor.sh
+
+  check:
+    desc: Run container environment checks (called by main health check)
+    silent: true
+    cmds:
+      - |
+        if ./scripts/task/container/detect-environment.sh >/dev/null 2>&1; then
+          echo "Container environment detected - running container health checks..."
+          ./scripts/task/container/doctor.sh
+        else
+          echo "No container environment detected"
+        fi
+
+  setup:
+    desc: Setup container environment (called by main setup)
+    silent: true
+    cmds:
+      - |
+        if ./scripts/task/container/detect-environment.sh >/dev/null 2>&1; then
+          echo "Container environment detected - setting up container tools..."
+          if ! command -v docker &> /dev/null; then
+            echo "Installing Docker..."
+            brew install --cask docker || echo "Failed to install Docker - please install manually"
+          fi
+          if ! docker compose version &> /dev/null && ! command -v docker-compose &> /dev/null; then
+            echo "Installing Docker Compose..."
+            brew install docker-compose || echo "Failed to install Docker Compose"
+          fi
+          echo "Container setup completed"
+        else
+          echo "No container environment detected - skipping container setup"
+        fi
+
+  # Local CI testing with act
+  ci-test:
+    desc: Test application workflow locally with act
+    cmds:
+      - echo "Testing application workflow with act..."
+      - act push -W .github/workflows/app.yml --container-architecture linux/amd64
+
+  ci-test-list:
+    desc: List application workflow jobs
+    cmds:
+      - act push -W .github/workflows/app.yml --list
+
+  ci-test-job:
+    desc: Test specific workflow job with act (JOB=job-name)
+    preconditions:
+      - sh: '[ -n "{{.JOB}}" ]'
+        msg: "JOB variable is required. Usage: task container:ci-test-job JOB=health-check"
+    cmds:
+      - echo "Testing job {{.JOB}} with act..."
+      - act push -W .github/workflows/app.yml -j {{.JOB}} --container-architecture linux/amd64
+
+  # Container deployment tasks
+  deploy-local:
+    desc: Deploy application locally with docker compose
+    dir: deploy
+    cmds:
+      - echo "Deploying application locally..."
+      - docker compose up -d
+      - echo "Waiting for services to be ready..."
+      - sleep 10
+      - docker compose ps
+      - echo "Local deployment completed"
+
+  deploy-local-logs:
+    desc: Show logs from local deployment
+    dir: deploy
+    cmds:
+      - docker compose logs -f {{.SERVICE | default ""}}
+
+  deploy-local-stop:
+    desc: Stop local deployment
+    dir: deploy
+    cmds:
+      - echo "Stopping local deployment..."
+      - docker compose down
+      - echo "Local deployment stopped"
+
+  deploy-local-restart:
+    desc: Restart local deployment
+    dir: deploy
+    cmds:
+      - echo "Restarting local deployment..."
+      - docker compose restart {{.SERVICE | default ""}}
+      - echo "Local deployment restarted"
+
+  deploy-status:
+    desc: Check deployment status
+    dir: deploy
+    cmds:
+      - echo "Checking deployment status..."
+      - docker compose ps
+      - echo ""
+      - echo "Resource usage:"
+      - docker compose top
