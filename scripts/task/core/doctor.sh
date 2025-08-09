@@ -6,7 +6,7 @@ REPO_OWNER="${REPO_OWNER:-}"
 REPO_NAME="${REPO_NAME:-}"
 
 if [ -z "$REPO_OWNER" ] || [ -z "$REPO_NAME" ]; then
-    REPO_INFO=$(./scripts/task/core/detect-repo.sh)
+    REPO_INFO=$(./scripts/task/__taskfile__/detect-repo.sh)
     REPO_OWNER=$(echo "$REPO_INFO" | grep REPO_OWNER | cut -d= -f2)
     REPO_NAME=$(echo "$REPO_INFO" | grep REPO_NAME | cut -d= -f2)
 fi

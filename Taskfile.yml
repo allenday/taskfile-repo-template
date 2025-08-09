@@ -37,9 +37,9 @@ includes:
 
 vars:
   REPO_OWNER:
-    sh: ./scripts/task/core/detect-repo.sh | grep REPO_OWNER | cut -d= -f2
+    sh: ./scripts/task/__taskfile__/detect-repo.sh | grep REPO_OWNER | cut -d= -f2
   REPO_NAME:
-    sh: ./scripts/task/core/detect-repo.sh | grep REPO_NAME | cut -d= -f2
+    sh: ./scripts/task/__taskfile__/detect-repo.sh | grep REPO_NAME | cut -d= -f2
   SCORECARD_RESULTS: scorecard-results.json
   
   # Environment configuration
@@ -198,7 +198,7 @@ tasks:
       - |
         envs="{{range .NETWORKS}}{{$network := .}}{{range $.ENVIRONMENTS}}{{$network}}-{{.}} {{end}}{{end}}"
         echo "Checking environments: $envs"
-        ./scripts/task/check-environments.sh $envs
+        ./scripts/task/__taskfile__/check-environments.sh $envs
 
   check-secrets:
     desc: Check repository and environment secrets
@@ -212,7 +212,7 @@ tasks:
       - |
         envs="{{range .NETWORKS}}{{$network := .}}{{range $.ENVIRONMENTS}}{{$network}}-{{.}} {{end}}{{end}}"
         echo "Checking secrets for environments: $envs"
-        ./scripts/task/check-secrets.sh $envs
+        ./scripts/task/__taskfile__/check-secrets.sh $envs
 
   # Comprehensive health check with modular support
   doctor:
@@ -238,7 +238,7 @@ tasks:
   deploy:
     desc: Deploy application (ENV=dev|staging|prod NETWORK=internal|public SERVICE=api)
     cmds:
-      - ./scripts/task/deploy.sh {{.ENV | default "dev"}} {{.NETWORK | default "internal"}} {{.SERVICE | default "api"}}
+      - ./scripts/task/__taskfile__/deploy.sh {{.ENV | default "dev"}} {{.NETWORK | default "internal"}} {{.SERVICE | default "api"}}
 
   deploy-all:
     desc: Deploy to all environments
@@ -249,9 +249,9 @@ tasks:
     desc: Bootstrap repository setup
     cmds:
       - echo "Setting up repository..."
-      - ./scripts/task/setup-secrets.sh {{.ENV | default "dev"}} {{.NETWORK | default "internal"}} {{.SERVICE | default "api"}}
-      - ./scripts/task/setup-environments.sh {{.ENV | default "dev"}} {{.NETWORK | default "internal"}}
-      - ./scripts/task/setup-branch-protection.sh
+      - ./scripts/task/__taskfile__/setup-secrets.sh {{.ENV | default "dev"}} {{.NETWORK | default "internal"}} {{.SERVICE | default "api"}}
+      - ./scripts/task/__taskfile__/setup-environments.sh {{.ENV | default "dev"}} {{.NETWORK | default "internal"}}
+      - ./scripts/task/__taskfile__/setup-branch-protection.sh
       - echo "Repository setup completed"
 
   setup-all-envs:
