@@ -125,6 +125,11 @@ tasks:
       - '{{.VENV_DIR}}/bin/twine upload dist/*'
 
   # All-in-one tasks
+  doctor:
+    desc: Run comprehensive Python development environment health check
+    cmds:
+      - ./scripts/task/python/doctor.sh
+
   check:
     desc: Run all Python code quality checks
     deps: [format-check, lint, test-cov, security]

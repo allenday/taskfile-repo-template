@@ -83,6 +83,11 @@ tasks:
         fi
 
   # Health checks
+  doctor:
+    desc: Run comprehensive core repository health check
+    cmds:
+      - ./scripts/task/core/doctor.sh
+
   check-tools:
     desc: Check required CLI tools installation
     silent: true

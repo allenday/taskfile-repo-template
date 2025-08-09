@@ -303,6 +303,11 @@ tasks:
     cmds:
       - echo "Protobuf development environment ready"
 
+  doctor:
+    desc: Run comprehensive Protocol Buffers development environment health check
+    cmds:
+      - ./scripts/task/protobuf/doctor.sh
+
   check-proto:
     desc: Run all protobuf checks (lint, validate, generate)
     deps: [lint-proto, validate-proto, gen-all]

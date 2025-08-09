@@ -23,6 +23,17 @@ includes:
     taskfile: ./taskfiles/Container.yml
     optional: true
     aliases: [docker]
+  
+  # Secret management
+  secrets:
+    taskfile: ./taskfiles/Secrets.yml
+    optional: true
+    aliases: [bws]
+  
+  # Application-specific tasks
+  app:
+    taskfile: ./taskfiles/App.yml
+    aliases: [gitlab]
 
 vars:
   REPO_OWNER:
@@ -207,10 +218,21 @@ tasks:
   doctor:
     desc: Complete repository health check (core + language-specific)
     cmds:
-      - echo "REPOSITORY HEALTH CHECK REPORT"
-      - echo "Running comprehensive health check..."
-      - task check
-      - echo "Repository health check completed"
+      - echo "🏥 COMPREHENSIVE REPOSITORY HEALTH CHECK"
+      - echo "========================================"
+      - echo ""
+      - task core:doctor || echo "⚠️  Core health check found issues (see above)"
+      - echo ""
+      - task container:doctor 2>/dev/null || echo "⏭️  Container checks skipped (no container environment detected)"
+      - echo ""
+      - task python:doctor 2>/dev/null || echo "⏭️  Python checks skipped (no Python project detected)"
+      - echo ""
+      - task protobuf:doctor 2>/dev/null || echo "⏭️  Protobuf checks skipped (no protobuf project detected)"
+      - echo ""
+      - task secrets:doctor 2>/dev/null || echo "⏭️  Secrets checks skipped (Bitwarden Secrets not configured)"
+      - echo ""
+      - echo "🎉 COMPREHENSIVE HEALTH CHECK COMPLETED"
+      - echo "========================================"
 
   # Multi-environment deployment and setup tasks
   deploy:
