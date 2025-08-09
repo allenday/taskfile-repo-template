@@ -152,21 +152,7 @@ tasks:
   doctor:
     desc: Complete repository health check (core + language-specific)
     cmds:
-      - echo "🏥 COMPREHENSIVE REPOSITORY HEALTH CHECK"
-      - echo "========================================"
-      - echo ""
-      - task core:doctor || echo "⚠️  Core health check found issues (see above)"
-      - echo ""
-      - task container:doctor 2>/dev/null || echo "⏭️  Container checks skipped (no container environment detected)"
-      - echo ""
-      - task python:doctor 2>/dev/null || echo "⏭️  Python checks skipped (no Python project detected)"
-      - echo ""
-      - task protobuf:doctor 2>/dev/null || echo "⏭️  Protobuf checks skipped (no protobuf project detected)"
-      - echo ""
-      - task secrets:doctor 2>/dev/null || echo "⏭️  Secrets checks skipped (Bitwarden Secrets not configured)"
-      - echo ""
-      - echo "🎉 COMPREHENSIVE HEALTH CHECK COMPLETED"
-      - echo "========================================"
+      - ./scripts/task/__taskfile__/run-doctor.sh
 
   # Multi-environment deployment and setup tasks
   deploy:
