@@ -16,7 +16,7 @@ tasks:
     desc: Sync repository references (README badges, workflow files) with git remote
     cmds:
       - echo "Syncing repository references..."
-      - ./scripts/task/sync-readme.sh
+      - ./scripts/task/core/sync-readme.sh
       - echo "Repository references synced with {{.REPO_OWNER}}/{{.REPO_NAME}}"
 
   sync-check:
@@ -92,7 +92,7 @@ tasks:
     desc: Check required CLI tools installation
     silent: true
     cmds:
-      - ./scripts/task/check-tools.sh
+      - ./scripts/task/core/check-tools.sh
 
   check-branch-protection:
     desc: Check branch protection rules
@@ -104,7 +104,7 @@ tasks:
         msg: "GitHub CLI authentication required. Run 'gh auth login'"
     cmds:
       - echo "Checking branch protection rules..."
-      - ./scripts/task/check-branch-protection.sh
+      - ./scripts/task/core/check-branch-protection.sh
 
   check-workflows:
     desc: Check GitHub Actions workflows
@@ -119,7 +119,7 @@ tasks:
       - echo "Found {{.WORKFLOW_COUNT}} workflow file(s)"
       - |
         if [ "{{.WORKFLOW_COUNT}}" -gt 0 ]; then
-          ./scripts/task/check-workflows.sh
+          ./scripts/task/core/check-workflows.sh
         else
           echo "No workflow files found in .github/workflows"
         fi

@@ -37,9 +37,9 @@ includes:
 
 vars:
   REPO_OWNER:
-    sh: ./scripts/task/detect-repo.sh | grep REPO_OWNER | cut -d= -f2
+    sh: ./scripts/task/core/detect-repo.sh | grep REPO_OWNER | cut -d= -f2
   REPO_NAME:
-    sh: ./scripts/task/detect-repo.sh | grep REPO_NAME | cut -d= -f2
+    sh: ./scripts/task/core/detect-repo.sh | grep REPO_NAME | cut -d= -f2
   SCORECARD_RESULTS: scorecard-results.json
   
   # Environment configuration
