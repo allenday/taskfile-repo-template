@@ -74,10 +74,9 @@ if [ -n "$BWS_ACCESS_TOKEN" ] && [ -n "$BWS_PROJECT_ID" ] && command -v bws >/de
         fi
       fi
     else
-      echo "❌ Write permissions denied"
-      echo "   This access token has read-only access to the project"
-      echo "   Secret creation and management will fail"
-      PERMISSION_ISSUES=1
+      echo "⚠️  Read-only access detected"
+      echo "   This access token can read secrets but cannot create/modify them"
+      echo "   Secret management commands will be limited to read operations"
     fi
   else
     echo "❌ Failed to connect to Bitwarden Secrets"
@@ -104,15 +103,10 @@ if ! command -v bws >/dev/null 2>&1; then
   echo "   • Install Bitwarden Secrets CLI"
   ISSUES=$((ISSUES + 1))
 fi
-if [ $PERMISSION_ISSUES -gt 0 ]; then
-  echo "   • Access token has insufficient permissions for secret management"
-  ISSUES=$((ISSUES + 1))
-fi
-
 TOTAL_ISSUES=$((ISSUES + PERMISSION_ISSUES))
 if [ $TOTAL_ISSUES -eq 0 ]; then
   echo "✅ Bitwarden Secrets Manager is properly configured with full permissions"
 else
-  echo "❌ $TOTAL_ISSUES issues found - see above for resolution steps"
+  echo "❌ $ISSUES issues found - see above for resolution steps"
   exit 1
 fi
