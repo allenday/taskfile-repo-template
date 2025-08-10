@@ -37,6 +37,7 @@ fi
 echo ""
 
 # Test connectivity if properly configured
+PERMISSION_ISSUES=0
 if [ -n "$BWS_ACCESS_TOKEN" ] && [ -n "$BWS_PROJECT_ID" ] && command -v bws >/dev/null 2>&1; then
   echo "🌐 Connectivity Test:"
   if bws secret list "$BWS_PROJECT_ID" >/dev/null 2>&1; then
@@ -55,12 +56,37 @@ if [ -n "$BWS_ACCESS_TOKEN" ] && [ -n "$BWS_PROJECT_ID" ] && command -v bws >/de
     else
       echo "📝 No GitLab secrets found (will be created on first run)"
     fi
+    
+    # Test write permissions by creating and deleting a temporary secret
+    echo ""
+    echo "🔐 Permission Test:"
+    TEST_SECRET_NAME="BWS_DOCTOR_TEST_$(date +%s)"
+    
+    if bws secret create "$TEST_SECRET_NAME" "test_value" "$BWS_PROJECT_ID" >/dev/null 2>&1; then
+      echo "✅ Write permissions confirmed"
+      # Get the secret ID to delete it
+      TEST_SECRET_ID=$(bws secret list "$BWS_PROJECT_ID" --output json 2>/dev/null | jq -r --arg name "$TEST_SECRET_NAME" '.[] | select(.key == $name) | .id' 2>/dev/null)
+      if [ -n "$TEST_SECRET_ID" ]; then
+        if bws secret delete "$TEST_SECRET_ID" >/dev/null 2>&1; then
+          echo "✅ Delete permissions confirmed"
+        else
+          echo "⚠️  Delete permissions limited (test secret remains: $TEST_SECRET_NAME)"
+        fi
+      fi
+    else
+      echo "❌ Write permissions denied"
+      echo "   This access token has read-only access to the project"
+      echo "   Secret creation and management will fail"
+      PERMISSION_ISSUES=1
+    fi
   else
     echo "❌ Failed to connect to Bitwarden Secrets"
     echo "   Check your BWS_ACCESS_TOKEN and BWS_PROJECT_ID"
+    PERMISSION_ISSUES=1
   fi
 else
   echo "⚠️  Skipping connectivity test - missing configuration"
+  PERMISSION_ISSUES=0
 fi
 
 echo ""
@@ -78,10 +104,15 @@ if ! command -v bws >/dev/null 2>&1; then
   echo "   • Install Bitwarden Secrets CLI"
   ISSUES=$((ISSUES + 1))
 fi
+if [ $PERMISSION_ISSUES -gt 0 ]; then
+  echo "   • Access token has insufficient permissions for secret management"
+  ISSUES=$((ISSUES + 1))
+fi
 
-if [ $ISSUES -eq 0 ]; then
-  echo "✅ Bitwarden Secrets Manager is properly configured"
+TOTAL_ISSUES=$((ISSUES + PERMISSION_ISSUES))
+if [ $TOTAL_ISSUES -eq 0 ]; then
+  echo "✅ Bitwarden Secrets Manager is properly configured with full permissions"
 else
-  echo "❌ $ISSUES issues found - see above for resolution steps"
+  echo "❌ $TOTAL_ISSUES issues found - see above for resolution steps"
   exit 1
 fi
