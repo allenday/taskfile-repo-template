@@ -13,6 +13,11 @@ includes:
     optional: true
     aliases: [py]
   
+  solidity:
+    taskfile: ./taskfiles/Solidity.yml
+    optional: true
+    aliases: [sol]
+  
   protobuf:
     taskfile: ./taskfiles/Protobuf.yml
     optional: true

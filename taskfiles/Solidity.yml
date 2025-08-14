@@ -1,0 +1,290 @@
+version: '3'
+
+# Solidity Development Taskfile
+# Foundry-based Solidity development with comprehensive tooling
+
+vars:
+  FOUNDRY_PROFILE: '{{.FOUNDRY_PROFILE | default "default"}}'
+  BUILD_DIR: '{{.BUILD_DIR | default "build/contracts"}}'
+  CACHE_DIR: '{{.CACHE_DIR | default "build/cache"}}'
+  DOCS_DIR: '{{.DOCS_DIR | default "build/docs"}}'
+  COVERAGE_DIR: '{{.COVERAGE_DIR | default "build/coverage"}}'
+
+tasks:
+  # Build tasks
+  build:
+    desc: Build Solidity contracts with Foundry
+    cmds:
+      - forge build
+    sources:
+      - src/**/*.sol
+      - foundry.toml
+      - remappings.txt
+    generates:
+      - "{{.BUILD_DIR}}/**/*.json"
+
+  clean:
+    desc: Clean Solidity build artifacts
+    cmds:
+      - forge clean
+      - rm -rf {{.DOCS_DIR}}
+      - rm -rf {{.COVERAGE_DIR}}
+
+  # Testing tasks  
+  test:
+    desc: Run Solidity tests with Foundry
+    cmds:
+      - forge test
+    sources:
+      - src/**/*.sol
+      - test/**/*.sol
+      - foundry.toml
+
+  test:verbose:
+    desc: Run Solidity tests with verbose output
+    cmds:
+      - forge test -vvv
+
+  test:gas:
+    desc: Run Solidity tests with gas reporting
+    cmds:
+      - forge test --gas-report
+
+  test:coverage:
+    desc: Generate test coverage report
+    cmds:
+      - forge coverage --report lcov
+      - mkdir -p {{.COVERAGE_DIR}}
+      - genhtml lcov.info --output-directory {{.COVERAGE_DIR}} --ignore-errors source || echo "lcov not available, coverage report saved as lcov.info"
+    generates:
+      - lcov.info
+      - "{{.COVERAGE_DIR}}/**/*"
+
+  test:fuzz:
+    desc: Run fuzz tests with increased iterations
+    cmds:
+      - forge test --fuzz-runs 10000
+
+  test:invariant:
+    desc: Run invariant tests
+    cmds:
+      - forge test --invariant-runs 1000
+
+  # Documentation tasks
+  docs:
+    desc: Generate Solidity documentation
+    cmds:
+      - forge doc --build
+      - mkdir -p {{.DOCS_DIR}}
+      - rm -rf {{.DOCS_DIR}}/*
+      - cp -r docs/book/* {{.DOCS_DIR}}/ || echo "No docs generated"
+    sources:
+      - src/**/*.sol
+    generates:
+      - "{{.DOCS_DIR}}/**/*"
+
+  docs:serve:
+    desc: Serve documentation locally
+    cmds:
+      - forge doc --serve --port 3000
+
+  # Formatting and linting
+  format:
+    desc: Format Solidity code
+    cmds:
+      - forge fmt
+    sources:
+      - src/**/*.sol
+      - test/**/*.sol
+      - script/**/*.sol
+
+  format:check:
+    desc: Check Solidity code formatting
+    cmds:
+      - forge fmt --check
+
+  lint:
+    desc: Lint Solidity code (if solhint is configured)
+    cmds:
+      - |
+        if [ -f .solhint.json ] || [ -f solhint.config.js ]; then
+          solhint 'src/**/*.sol' 'test/**/*.sol' 'script/**/*.sol'
+        else
+          echo "⚠️  No solhint configuration found. Install with: npm install -g solhint"
+        fi
+
+  # Development tools
+  console:
+    desc: Start Foundry console
+    cmds:
+      - forge console
+
+  install:
+    desc: Install Foundry dependencies
+    cmds:
+      - forge install
+
+  update:
+    desc: Update Foundry dependencies
+    cmds:
+      - forge update
+
+  # Local development
+  anvil:
+    desc: Start local Anvil node
+    cmds:
+      - anvil
+
+  anvil:fork:
+    desc: Start Anvil with mainnet fork (FORK_URL required)
+    preconditions:
+      - sh: '[ -n "{{.FORK_URL}}" ]'
+        msg: "FORK_URL variable is required. Usage: task solidity:anvil:fork FORK_URL=https://..."
+    cmds:
+      - anvil --fork-url {{.FORK_URL}}
+
+  # Verification tasks
+  verify:
+    desc: Verify contracts on block explorer
+    cmds:
+      - echo "Please use deployment scripts with --verify flag for contract verification"
+
+  # Security analysis
+  analyze:
+    desc: Run security analysis tools
+    cmds:
+      - |
+        echo "Running security analysis..."
+        if command -v slither >/dev/null 2>&1; then
+          echo "🔍 Running Slither..."
+          slither . || echo "⚠️  Slither analysis completed with warnings"
+        else
+          echo "⚠️  Slither not installed. Install with: pip install slither-analyzer"
+        fi
+        if command -v mythril >/dev/null 2>&1; then
+          echo "🔍 Running Mythril on contracts..."
+          find src -name "*.sol" -exec mythril analyze {} \; 2>/dev/null || echo "⚠️  Mythril analysis completed"
+        else
+          echo "⚠️  Mythril not installed. Install with: pip install mythril"
+        fi
+
+  # Size optimization
+  sizes:
+    desc: Show contract sizes
+    cmds:
+      - forge build --sizes --profile {{.FOUNDRY_PROFILE}}
+
+  # Health checks and setup
+  doctor:
+    desc: Run Solidity development environment health check
+    cmds:
+      - echo "🔧 Running Solidity environment health check..."
+      - cmd: forge --version
+        silent: true
+      - echo "✅ Foundry is installed"
+      - cmd: test -f foundry.toml
+      - echo "✅ Foundry configuration found"
+      - |
+        if [ -d src/main/solidity ] || [ -d src ]; then
+          echo "✅ Solidity source directory exists"
+        else
+          echo "⚠️  No Solidity source directory found"
+        fi
+      - |
+        if [ -d src/test/solidity ] || [ -d test ]; then
+          echo "✅ Test directory exists"
+        else
+          echo "⚠️  No test directory found"
+        fi
+      - |
+        if [ -d src/main/solidity/script ] || [ -d script ]; then
+          echo "✅ Script directory exists"
+        else
+          echo "ℹ️  No script directory found (optional)"
+        fi
+      - |
+        if [ -f remappings.txt ]; then
+          echo "✅ Remappings file found"
+        else
+          echo "ℹ️  No remappings.txt found (optional)"
+        fi
+      - |
+        if command -v solhint >/dev/null 2>&1; then
+          echo "✅ Solhint is available"
+        else
+          echo "⚠️  Solhint not installed (optional linting)"
+        fi
+      - echo "🎉 Solidity environment health check completed!"
+
+  setup:
+    desc: Setup Solidity development environment
+    cmds:
+      - echo "🚀 Setting up Solidity development environment..."
+      - |
+        if ! command -v forge >/dev/null 2>&1; then
+          echo "Installing Foundry..."
+          curl -L https://foundry.paradigm.xyz | bash
+          foundryup
+        fi
+      - forge install
+      - mkdir -p src test script
+      - |
+        if [ ! -f foundry.toml ]; then
+          echo "Creating basic foundry.toml..."
+          cat > foundry.toml << 'EOF'
+        [profile.default]
+        src = "src"
+        out = "out"
+        libs = ["lib"]
+        test = "test"
+        script = "script"
+        optimizer = true
+        optimizer_runs = 200
+        solc_version = "0.8.26"
+        
+        [profile.ci]
+        fuzz = { runs = 10_000 }
+        invariant = { runs = 1_000 }
+        EOF
+        fi
+      - echo "✅ Solidity development environment setup complete!"
+
+  # Check for common issues
+  check:
+    desc: Run comprehensive Solidity checks (called by main health check)
+    cmds:
+      - task: doctor
+        silent: true
+      - task: format:check
+      - task: build
+      - |
+        echo "🔍 Running additional checks..."
+        if [ -d test ]; then
+          task solidity:test > /dev/null 2>&1 && echo "✅ Tests pass" || echo "❌ Some tests failing"
+        fi
+        if command -v solhint >/dev/null 2>&1 && ([ -f .solhint.json ] || [ -f solhint.config.js ]); then
+          task solidity:lint > /dev/null 2>&1 && echo "✅ Linting passed" || echo "⚠️  Linting issues found"
+        fi
+
+  # Utility tasks
+  dependencies:
+    desc: List installed Foundry dependencies
+    cmds:
+      - |
+        echo "📦 Foundry Dependencies:"
+        if [ -d lib ]; then
+          find lib -maxdepth 1 -type d -not -name lib | sed 's|lib/|  - |'
+        else
+          echo "  No dependencies found"
+        fi
+
+  remappings:
+    desc: Show current remappings
+    cmds:
+      - |
+        echo "🗂️  Current Remappings:"
+        if [ -f remappings.txt ]; then
+          cat remappings.txt | sed 's/^/  /'
+        else
+          forge remappings | sed 's/^/  /'
+        fi
