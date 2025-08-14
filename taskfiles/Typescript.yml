@@ -1,0 +1,143 @@
+version: '3'
+
+# TypeScript Development Environment Tasks
+vars:
+  TS_SRC: "{{.TS_SRC | default \"src/main/typescript\"}}"
+  TS_TEST: "{{.TS_TEST | default \"src/test/typescript\"}}"
+  TS_DIST: "{{.TS_DIST | default \"dist\"}}"
+  NODE_VERSION: "{{.NODE_VERSION | default \"20\"}}"
+
+tasks:
+  # Environment checks
+  check:
+    desc: Run TypeScript environment checks (called by main health check)
+    cmds:
+      - ./scripts/task/typescript/doctor.sh
+
+  doctor:
+    desc: Run TypeScript development environment health check
+    cmds:
+      - echo "🔧 Running TypeScript environment health check..."
+      - task: check
+
+  # Setup tasks
+  setup:
+    desc: Setup TypeScript development environment
+    cmds:
+      - ./scripts/task/typescript/setup-environment.sh
+
+  # Build tasks
+  build:
+    desc: Compile TypeScript to JavaScript
+    cmds:
+      - echo "🔨 Building TypeScript..."
+      - npx tsc
+    sources:
+      - "{{.TS_SRC}}/**/*.ts"
+      - "tsconfig.json"
+    generates:
+      - "{{.TS_DIST}}/**/*.js"
+
+  build:clean:
+    desc: Clean TypeScript build artifacts
+    cmds:
+      - rm -rf {{.TS_DIST}}
+      - rm -rf node_modules/.cache
+
+  # Development tasks
+  dev:
+    desc: Start TypeScript development server with watch mode
+    cmds:
+      - npx tsc --watch
+    deps: [install]
+
+  # Package management
+  install:
+    desc: Install TypeScript dependencies
+    cmds:
+      - npm install
+    sources:
+      - package.json
+      - package-lock.json
+    generates:
+      - node_modules/.package-lock.json
+
+  update:
+    desc: Update TypeScript dependencies
+    cmds:
+      - npm update
+      - npm audit fix
+
+  # Testing tasks
+  test:
+    desc: Run TypeScript tests
+    cmds:
+      - echo "🧪 Running TypeScript tests..."
+      - npm test
+    deps: [install]
+
+  test:watch:
+    desc: Run TypeScript tests in watch mode
+    cmds:
+      - npm run test:watch
+    deps: [install]
+
+  test:coverage:
+    desc: Run TypeScript tests with coverage
+    cmds:
+      - npm run test:coverage
+    deps: [install]
+
+  # Linting and formatting
+  lint:
+    desc: Lint TypeScript code
+    cmds:
+      - npx eslint {{.TS_SRC}} {{.TS_TEST}} --ext .ts
+    deps: [install]
+
+  lint:fix:
+    desc: Fix TypeScript linting issues
+    cmds:
+      - npx eslint {{.TS_SRC}} {{.TS_TEST}} --ext .ts --fix
+    deps: [install]
+
+  format:
+    desc: Format TypeScript code
+    cmds:
+      - npx prettier --write "{{.TS_SRC}}/**/*.ts" "{{.TS_TEST}}/**/*.ts"
+    deps: [install]
+
+  format:check:
+    desc: Check TypeScript code formatting
+    cmds:
+      - npx prettier --check "{{.TS_SRC}}/**/*.ts" "{{.TS_TEST}}/**/*.ts"
+    deps: [install]
+
+  # Type checking
+  typecheck:
+    desc: Run TypeScript type checking
+    cmds:
+      - npx tsc --noEmit
+    deps: [install]
+
+  # Clean tasks
+  clean:
+    desc: Clean all TypeScript artifacts
+    cmds:
+      - task: build:clean
+      - rm -rf node_modules
+
+  # Bundle tasks (for web deployment)
+  bundle:
+    desc: Bundle TypeScript for web deployment
+    cmds:
+      - echo "📦 Bundling TypeScript for web..."
+      - npx webpack --mode=production
+    deps: [build]
+
+  bundle:dev:
+    desc: Bundle TypeScript for development
+    cmds:
+      - echo "📦 Bundling TypeScript for development..."
+      - npx webpack --mode=development
+    deps: [build]
