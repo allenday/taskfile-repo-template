@@ -196,6 +196,97 @@ git commit -m "feat: integrate taskfile-repo-template
 - Enable comprehensive health monitoring with task doctor"
 ```
 
+## Resource Naming and Directory Organization
+
+This template implements a **5-dimensional resource naming pattern** to organize secrets, configuration, and deployment artifacts in a consistent, scalable way.
+
+### 5D Resource Naming Pattern
+
+All resources follow this naming convention:
+```
+${CONCERN}_${NETWORK}_${ENVIRONMENT}_${COMPONENT}_${RESOURCE}
+```
+
+**Dimensions explained:**
+- **CONCERN**: What domain/system the resource belongs to (`DEPLOY`, `CHAIN`, `API`)
+- **NETWORK**: Where the resource is used (`LOCAL`, `CLOUD`, `INTRANET`)  
+- **ENVIRONMENT**: Lifecycle stage (`DEV`, `STAGING`, `PROD`)
+- **COMPONENT**: Application part (`VALIDATOR`, `DAPP`, `API`)
+- **RESOURCE**: Actual config/secret (`PRIVATE_KEY`, `URL`, `TOKEN`)
+
+**Examples:**
+```bash
+DEPLOY_LOCAL_DEV_VALIDATOR_PRIVATE_KEY     # Local development validator private key
+DEPLOY_CLOUD_PROD_DAPP_CDN_URL            # Production dApp CDN URL  
+CHAIN_BASE_SEPOLIA_STAGING_CONTRACTS_RPC_URL  # Staging blockchain RPC endpoint
+API_CLOUD_PROD_GITHUB_TOKEN               # Production GitHub API token
+```
+
+### Directory Structure Alignment
+
+Organize your directories to match the resource naming pattern:
+
+```
+src/main/
+├── typescript/
+│   ├── validator/          # DEPLOY_*_*_VALIDATOR_* resources
+│   └── dapp/              # DEPLOY_*_*_DAPP_* resources  
+└── solidity/              # CHAIN_*_*_CONTRACTS_* resources
+
+deploy/
+├── local/                 # DEPLOY_LOCAL_*_*_* configs
+│   ├── dev/
+│   │   ├── validator/
+│   │   └── dapp/
+│   ├── staging/
+│   └── prod/
+└── cloud/                 # DEPLOY_CLOUD_*_*_* configs
+    ├── dev/
+    ├── staging/  
+    └── prod/
+```
+
+### Configuration in Taskfile.yml
+
+Define your project's 5D grid in your main `Taskfile.yml`:
+
+```yaml
+vars:
+  # 5-dimensional resource configuration
+  # Pattern: ${CONCERN}_${NETWORK}_${ENVIRONMENT}_${COMPONENT}_${RESOURCE}
+  CONCERNS:
+    - deploy
+    - chain
+    - api
+  NETWORKS:
+    - local
+    - cloud
+  ENVIRONMENTS:
+    - dev
+    - staging
+    - prod
+  COMPONENTS:
+    - validator
+    - dapp
+```
+
+### Benefits
+
+- **Intuitive navigation**: Directory structure matches resource names
+- **Scalable organization**: Clear patterns that grow with project complexity  
+- **Consistent tooling**: Template scripts work across all resource types
+- **Clear mental model**: Developers quickly understand where things belong
+- **Automation friendly**: Scripts can iterate over the full grid for validation
+
+### Secret Resolution
+
+The template's secret resolution follows the 5D hierarchy, trying:
+1. Environment variables (highest precedence)
+2. `.env` files (medium precedence)  
+3. Bitwarden Secrets Manager (lowest precedence, authoritative)
+
+Use `task secrets:resolve SECRET_ITEM=GITHUB_TOKEN` to test resolution.
+
 ## Quick Start (For Template Users)
 
 1. **Initialize the repository:**
