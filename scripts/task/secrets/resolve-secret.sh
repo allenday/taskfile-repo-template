@@ -5,7 +5,8 @@ set -euo pipefail
 SECRET_ITEM="${1:-}"
 NETWORK="${NETWORK:-LOCAL}"
 ENVIRONMENT="${ENVIRONMENT:-DEV}"
-SERVICE="${SERVICE:-GITLAB}"
+SERVICE="${SERVICE:-VALIDATOR}"  # Updated default for EAS project
+CONCERN="${CONCERN:-DEPLOY}"  # Default concern
 
 if [ -z "$SECRET_ITEM" ]; then
     echo "Usage: $0 <SECRET_ITEM>" >&2
@@ -13,8 +14,11 @@ if [ -z "$SECRET_ITEM" ]; then
     exit 1
 fi
 
-# Construct full secret name using naming convention
-SECRET_NAME="${NETWORK}_${ENVIRONMENT}_${SERVICE}_${SECRET_ITEM}"
+# Construct full secret name using 5D naming convention
+# Pattern: ${CONCERN}_${NETWORK}_${ENVIRONMENT}_${COMPONENT}_${RESOURCE}
+CONCERN="${CONCERN:-DEPLOY}"  # Default concern if not specified
+COMPONENT="${COMPONENT:-${SERVICE}}"  # Backward compatibility
+SECRET_NAME="${CONCERN}_${NETWORK}_${ENVIRONMENT}_${COMPONENT}_${SECRET_ITEM}"
 
 # Environment variable name (for direct override)
 ENV_VAR_NAME="${SECRET_ITEM}"
