@@ -4,16 +4,16 @@ version: '3'
 # Includes code generation, validation, and multi-language support
 
 vars:
-  PROTO_DIR: '{{.PROTO_DIR | default "proto"}}'
-  PROTO_OUT_DIR: '{{.PROTO_OUT_DIR | default "generated"}}'
+  PROTO_DIR: '{{.PROTO_DIR | default "src/main/proto"}}'
+  PROTO_OUT_DIR: '{{.PROTO_OUT_DIR | default "src/generated"}}'
   PROTOC_VERSION: '{{.PROTOC_VERSION | default "25.1"}}'
   
   # Language-specific output directories
-  GO_OUT: '{{.GO_OUT | default "generated/go"}}'
-  PYTHON_OUT: '{{.PYTHON_OUT | default "generated/python"}}'
-  TS_OUT: '{{.TS_OUT | default "generated/typescript"}}'
-  JAVA_OUT: '{{.JAVA_OUT | default "generated/java"}}'
-  CPP_OUT: '{{.CPP_OUT | default "generated/cpp"}}'
+  GO_OUT: '{{.GO_OUT | default "src/generated/go"}}'
+  PYTHON_OUT: '{{.PYTHON_OUT | default "src/generated/python"}}'
+  TS_OUT: '{{.TS_OUT | default "src/generated/typescript"}}'
+  JAVA_OUT: '{{.JAVA_OUT | default "src/generated/java"}}'
+  CPP_OUT: '{{.CPP_OUT | default "src/generated/cpp"}}'
 
 tasks:
   # Tool installation

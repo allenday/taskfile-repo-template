@@ -8,7 +8,7 @@ echo ""
 
 # Check if Protobuf project exists
 PROTOBUF_PROJECT=false
-if [ -d "proto" ] || find . -maxdepth 2 -name "*.proto" | head -1 | grep -q .; then
+if [ -d "proto" ] || [ -d "src/main/proto" ] || find . -maxdepth 3 -name "*.proto" | head -1 | grep -q .; then
     PROTOBUF_PROJECT=true
 fi
 
@@ -218,6 +218,19 @@ fi
 if command -v python3 >/dev/null 2>&1 && python3 -c "import grpc_tools" >/dev/null 2>&1; then
     echo "✅ Python: grpcio-tools available"
     LANG_TOOLS=$((LANG_TOOLS + 1))
+fi
+
+# TypeScript protobuf tools
+if [ -f "./node_modules/.bin/protoc-gen-ts" ]; then
+    echo "✅ TypeScript: protoc-gen-ts installed locally"
+    LANG_TOOLS=$((LANG_TOOLS + 1))
+elif command -v protoc-gen-ts >/dev/null 2>&1; then
+    echo "✅ TypeScript: protoc-gen-ts installed globally"
+    LANG_TOOLS=$((LANG_TOOLS + 1))
+else
+    echo "❌ TypeScript: protoc-gen-ts not found"
+    echo "   Install with: task protobuf:install-grpc-tools"
+    ISSUES=$((ISSUES + 1))
 fi
 
 if [ $LANG_TOOLS -eq 0 ]; then
